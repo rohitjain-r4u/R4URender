@@ -1621,6 +1621,18 @@ def import_candidates_wizard(req_id):
         req = {"id": req_id, "client_name": "", "requirement_name": f"Requirement {req_id}"}
     return render_template("import.html", requirement=req, sheet_columns=SHEET_COLUMNS)
 
+# --- Compatibility alias for old templates ---
+@app.route(
+    "/requirement/<int:req_id>/candidates/import/page",
+    methods=["GET"],
+    endpoint="import_bp.import_page"
+)
+@login_required
+def import_page_alias(req_id):
+    # Reuse the same logic by redirecting to the main wizard route
+    return redirect(url_for("import_wizard", req_id=req_id))
+
+
 @app.route("/api/import/parse", methods=["POST"])
 @login_required
 def api_import_parse():
