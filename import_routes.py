@@ -5,7 +5,6 @@ import json
 import pandas as pd
 from flask import Blueprint, request, jsonify, session, render_template
 from datetime import datetime
-from contextlib import contextmanager
 import psycopg2
 from fuzzywuzzy import process
 import re
@@ -30,9 +29,10 @@ except Exception:
 # Blueprint
 import_bp = Blueprint("import_bp", __name__)
 
-@contextmanager
-def get_db_cursor():
-    conn = psycopg2.connect(DATABASE_URL)
+# ✅ Use DATABASE_URL from environment
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+# DB config (keep yours)
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -142,6 +142,7 @@ FORCED_KEYS_NORM = list(FORCED_MAPPINGS_NORM.keys())
 # DB helpers
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(**DB_CONFIG)
 
 def ensure_memory_table(cur):
     cur.execute("""
