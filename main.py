@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from contextlib import contextmanager
 from itsdangerous import URLSafeTimedSerializer
+from flask_login import login_required
 import logging
 import json
 import io
@@ -90,6 +91,7 @@ def get_db_cursor():
                 conn.close()
             except Exception:
                 pass
+app.get_db_cursor = get_db_cursor
 
 
 

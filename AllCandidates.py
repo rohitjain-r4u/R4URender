@@ -3,7 +3,6 @@
 from flask import Blueprint, render_template, request, session, redirect, url_for, flash, jsonify, send_file
 from pagination import Paginator, sanitize_page_params
 import sys
-from main import get_db_cursor
 
 import json
 import re as _re
@@ -81,6 +80,7 @@ all_candidates_bp = Blueprint('all_candidates_bp', __name__, template_folder='te
 
 
 def _helpers():
+    from main import get_db_cursor  # lazy import to avoid circular import
     return get_db_cursor
 
 
@@ -144,7 +144,7 @@ def all_candidates():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    get_db_cursor
+    get_db_cursor = _helpers()
 
     # Consistent pagination
     page, per_page = sanitize_page_params(
@@ -234,7 +234,7 @@ def all_candidates_requirements_json():
     if 'user_id' not in session:
         return jsonify({'ok': False, 'error': 'unauthorized'}), 401
 
-    get_db_cursor
+    get_db_cursor = _helpers()
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute("""
@@ -262,7 +262,7 @@ def export_all_candidates_csv():
             v = default
         return str(v).strip()
 
-    get_db_cursor
+    get_db_cursor = _helpers()
     filt = _extract_filters_from_mapping(_getp)
     where_sql = filt['where_sql']
     params = filt['params']
