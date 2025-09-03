@@ -1627,8 +1627,9 @@ def candidate_new():
 
 
 @app.route("/requirement/<int:req_id>/candidates/import", methods=["GET"], endpoint="import_wizard")
-@login_required
 def import_candidates_wizard(req_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
     try:
         req = get_requirement(req_id)
     except NameError:
@@ -1647,8 +1648,9 @@ def import_page_alias(req_id):
 
 
 @app.route("/api/import/parse", methods=["POST"])
-@login_required
 def api_import_parse():
+    if 'user_id' not in session:
+        return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
     req_id = request.form.get("requirement_id", type=int)
     f = request.files.get("file")
     pasted = request.form.get("text", "")
@@ -1671,8 +1673,9 @@ def api_import_parse():
     })
 
 @app.route("/api/import/validate", methods=["POST"])
-@login_required
 def api_import_validate():
+    if 'user_id' not in session:
+        return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
     data = request.get_json(force=True) or {}
     rows = data.get("rows", [])
     today = datetime.date.today().isoformat()
@@ -1690,8 +1693,9 @@ def api_import_validate():
 
 
 @app.route("/api/import/save", methods=["POST"])
-@login_required
 def api_import_save():
+    if 'user_id' not in session:
+        return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
     data = request.get_json(force=True) or {}
     req_id = data.get("requirement_id")
     rows = data.get("rows", [])
