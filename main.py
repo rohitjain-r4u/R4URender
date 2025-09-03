@@ -1621,88 +1621,8 @@ def candidate_new():
 
 
 # API compatibility wrappers for Import Wizard frontend
-@app.route('/api/import/parse', methods=['POST'])
-def api_import_parse():
-    """Compatibility wrapper: parse uploaded file or pasted text and return headers/samples/suggested mapping."""
-    try:
-        # req_id may be provided in form or args; optional
-        req_id = request.form.get('requirement_id') or request.args.get('requirement_id') or request.form.get('req_id') or request.args.get('req_id')
-        # call existing upload handler if available
-        if 'import_candidates_upload' in globals():
-            try:
-                return import_candidates_upload(int(req_id)) if req_id else import_candidates_upload(None)
-            except Exception:
-                # direct call may not accept None; fall back to a generic error response
-                return jsonify({'ok': False, 'error': 'Parse handler failed on server.'}), 500
-        else:
-            return jsonify({'ok': False, 'error': 'Parse endpoint not implemented on server.'}), 500
-    except Exception:
-        app.logger.exception('api_import_parse error')
-        return jsonify({'ok': False, 'error': 'Server error'}), 500
 
-@app.route('/api/import/validate', methods=['POST'])
-def api_import_validate():
-    """Compatibility wrapper: validate mapped rows. Expects JSON body { rows: [...] }"""
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        # If a server-side validate handler exists, try to call it
-        if 'import_candidates_validate' in globals():
-            try:
-                return import_candidates_validate(data)
-            except Exception:
-                return jsonify({'ok': False, 'error': 'Server-side validation failed.'}), 500
-        else:
-            # If not available, attempt basic validation or return not-implemented
-            return jsonify({'ok': False, 'error': 'Validation not implemented on server.'}), 500
-    except Exception:
-        app.logger.exception('api_import_validate error')
-        return jsonify({'ok': False, 'error': 'Server error'}), 500
 
-@app.route('/api/import/save', methods=['POST'])
-def api_import_save():
-    """Compatibility wrapper: save validated rows. Expects JSON body { requirement_id, rows }"""
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        req_id = data.get('requirement_id') or request.form.get('req_id') or request.args.get('req_id')
-        if 'import_candidates_commit' in globals():
-            try:
-                return import_candidates_commit(int(req_id)) if req_id else import_candidates_commit(None)
-            except Exception:
-                return jsonify({'ok': False, 'error': 'Save handler failed on server.'}), 500
-        else:
-            return jsonify({'ok': False, 'error': 'Save endpoint not implemented on server.'}), 500
-    except Exception:
-        app.logger.exception('api_import_save error')
-        return jsonify({'ok': False, 'error': 'Server error'}), 500
-@app.route('/api/import/validate', methods=['POST'])
-def api_import_validate():
-    """Compatibility wrapper: validate mapped rows. Expects JSON body { rows: [...] }"""
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        # Attempt to call existing commit/validate logic if available
-        try:
-            # If there is a validation function available, call it. Otherwise, return a not-implemented response.
-            return import_candidates_validate(data) if 'import_candidates_validate' in globals() else jsonify({'ok': False, 'error': 'Server-side validate not available'}), 500
-        except Exception:
-            return jsonify({'ok': False, 'error': 'Validation not implemented on server.'}), 500
-    except Exception:
-        app.logger.exception('api_import_validate error')
-        return jsonify({'ok': False, 'error': 'Server error'}), 500
-
-@app.route('/api/import/save', methods=['POST'])
-def api_import_save():
-    """Compatibility wrapper: save validated rows. Expects JSON body { requirement_id, rows }"""
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        req_id = data.get('requirement_id') or request.form.get('req_id') or request.args.get('req_id')
-        # Call existing commit endpoint if available
-        try:
-            return import_candidates_commit(int(req_id)) if req_id else import_candidates_commit(None)
-        except Exception:
-            return jsonify({'ok': False, 'error': 'Save endpoint not fully implemented on server.'}), 500
-    except Exception:
-        app.logger.exception('api_import_save error')
-        return jsonify({'ok': False, 'error': 'Server error'}), 500
 
 
 # ----------------------
