@@ -275,8 +275,9 @@ def validate_row_against_schema(row, schema):
 # --- ROUTES ---
 
 @import_bp.route("/candidates/import", methods=["GET"])
-def import_page():
-    return render_template("candidates_import.html")
+@import_bp.route("/candidates/import/<int:req_id>", methods=["GET"])
+def import_page(req_id):
+    return render_template("candidates_import.html", req_id=req_id)
 
 @import_bp.route("/candidates/import/upload", methods=["POST"])
 def upload_candidates():
