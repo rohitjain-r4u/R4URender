@@ -1751,7 +1751,6 @@ from flask import Blueprint, request, send_file, jsonify
 import io
 import pandas as pd
 from datetime import datetime
-from models import Candidate  # <-- import your ORM model
 
 export_bp = Blueprint("export_bp", __name__)
 
