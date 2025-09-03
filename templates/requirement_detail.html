@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="fw-bold">Active Requirements</h2>
+    <a href="{{ url_for('add_requirement') }}" class="btn btn-success btn-sm">
+      <i class="bi bi-plus-lg me-1"></i> Add Requirement
+    </a>
+  </div>
+
+  <!-- FILTER FORM -->
+  <form method="get" class="row g-2 mb-3" role="search" aria-label="Filter requirements">
+    <div class="col-md-3">
+      <input type="search" name="client" class="form-control" placeholder="Search by client name" value="{{ client_filter }}">
+    </div>
+    <div class="col-md-3">
+      <input type="search" name="requirement" class="form-control" placeholder="Search by requirement" value="{{ requirement_filter }}">
+    </div>
+    <div class="col-md-2">
+      <select name="status" class="form-select">
+        <option value="">All status</option>
+        <option value="Active" {% if status_filter == 'Active' %}selected{% endif %}>Active</option>
+        <option value="Hold" {% if status_filter == 'Hold' %}selected{% endif %}>Hold</option>
+        <option value="Closed" {% if status_filter == 'Closed' %}selected{% endif %}>Closed</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <input type="search" name="assigned_to" class="form-control" placeholder="Search by assigned" value="{{ assigned_filter }}">
+    </div>
+    <div class="col-md-2 d-flex gap-2">
+      <button class="btn btn-outline-primary w-100" type="submit">Apply</button>
+      <a class="btn btn-outline-secondary w-100" href="{{ url_for('requirements') }}">Reset</a>
+    </div>
+  </form>
+
+  <!-- Active filters as chips -->
+  <div class="mb-3">
+    {% if client_filter %}
+      <span class="badge bg-secondary me-2">
+        Client: {{ client_filter }}
+        <a href="{{ url_for('requirements', client=None, requirement=requirement_filter or None, status=status_filter or None, assigned_to=assigned_filter or None) }}" class="text-white ms-1" style="text-decoration:none;">&times;</a>
+      </span>
+    {% endif %}
+    {% if requirement_filter %}
+      <span class="badge bg-secondary me-2">
+        Requirement: {{ requirement_filter }}
+        <a href="{{ url_for('requirements', client=client_filter or None, requirement=None, status=status_filter or None, assigned_to=assigned_filter or None) }}" class="text-white ms-1" style="text-decoration:none;">&times;</a>
+      </span>
+    {% endif %}
+    {% if status_filter %}
+      <span class="badge bg-secondary me-2">
+        Status: {{ status_filter }}
+        <a href="{{ url_for('requirements', client=client_filter or None, requirement=requirement_filter or None, status=None, assigned_to=assigned_filter or None) }}" class="text-white ms-1" style="text-decoration:none;">&times;</a>
+      </span>
+    {% endif %}
+    {% if assigned_filter %}
+      <span class="badge bg-secondary me-2">
+        Assigned: {{ assigned_filter }}
+        <a href="{{ url_for('requirements', client=client_filter or None, requirement=requirement_filter or None, status=status_filter or None, assigned_to=None) }}" class="text-white ms-1" style="text-decoration:none;">&times;</a>
+      </span>
+    {% endif %}
+
+    {% if client_filter or requirement_filter or status_filter or assigned_filter %}
+      <a href="{{ url_for('requirements') }}" class="ms-2">Clear All</a>
+    {% endif %}
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-responsive">
+    <table class="table table-hover table-bordered align-middle">
+      <thead class="table-light">
+        <tr>
+          <th style="cursor:pointer" onclick="location.href='{{ url_for('requirements', sort_by='id', sort_dir='asc' if sort_dir=='desc' else 'desc', client=client_filter, requirement=requirement_filter, status=status_filter, assigned_to=assigned_filter) }}'">Job ID</th>
+          <th style="cursor:pointer" onclick="location.href='{{ url_for('requirements', sort_by='client_name', sort_dir='asc' if sort_dir=='desc' else 'desc', client=client_filter, requirement=requirement_filter, status=status_filter, assigned_to=assigned_filter) }}'">Client</th>
+          <th style="cursor:pointer" onclick="location.href='{{ url_for('requirements', sort_by='requirement_name', sort_dir='asc' if sort_dir=='desc' else 'desc', client=client_filter, requirement=requirement_filter, status=status_filter, assigned_to=assigned_filter) }}'">Requirement</th>
+          <th style="cursor:pointer" onclick="location.href='{{ url_for('requirements', sort_by='assigned_to', sort_dir='asc' if sort_dir=='desc' else 'desc', client=client_filter, requirement=requirement_filter, status=status_filter, assigned_to=assigned_filter) }}'">Assigned To</th>
+          <th style="cursor:pointer" onclick="location.href='{{ url_for('requirements', sort_by='status', sort_dir='asc' if sort_dir=='desc' else 'desc', client=client_filter, requirement=requirement_filter, status=status_filter, assigned_to=assigned_filter) }}'">Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in requirements %}
+          <tr id="req-row-{{ r.id }}">
+            <td>JD-{{ r.id }}</td>
+            <td>{{ r.client_name }}</td>
+            <td>{{ r.requirement_name }}</td>
+            <td>{{ r.assigned_to or '-' }}</td>
+            <td>
+              <span class="badge {% if r.status == 'Active' %}bg-success{% elif r.status == 'Hold' %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="font-size:.8rem;">
+                {{ r.status }}
+              </span>
+            </td>
+            <td class="text-nowrap">
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('requirement_detail', req_id=r.id) }}">View</a>
+              <a class="btn btn-sm btn-primary" href="{{ url_for('update_requirement', req_id=r.id) }}">Edit</a>
+              <form method="POST" action="{{ url_for('delete_requirement', req_id=r.id) }}" style="display:inline;" onsubmit="return confirm('Delete this requirement?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="text-center text-muted">No records found</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if total %}
+    <div class="small text-muted mt-2">
+      Showing page {{ page }} — total results: {{ total }}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

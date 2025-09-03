@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="fw-bold">Candidate Details - {{ candidate.candidate_name }}</h2>
+        <a href="{{ url_for('requirement_candidates', req_id=candidate.requirement_id) }}" class="btn btn-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Candidates
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="row mb-2">
+                <div class="col-md-6">
+                    <strong>Job Title:</strong> {{ candidate.job_title }}
+                </div>
+                <div class="col-md-6">
+                    <strong>Date of Application:</strong> {{ candidate.application_date }}
+                </div>
+            </div>
+            
+            <div class="row mb-2">
+                <div class="col-md-6">
+                    <strong>Current Company:</strong> {{ candidate.current_company }}
+                </div>
+                <div class="col-md-6">
+                    <strong>Total Experience:</strong> {{ candidate.total_experience }}
+                </div>
+            </div>
+
+            <div class="row mb-2">
+                <div class="col-md-6">
+                    <strong>Phones:</strong>
+                    {% for phone in candidate.phones %}
+                        {{ phone }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="col-md-6">
+                    <strong>Emails:</strong>
+                    {% for email in candidate.emails %}
+                        {{ email }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="row mb-2">
+                <div class="col-md-6">
+                    <strong>Current Location:</strong> {{ candidate.current_location }}
+                </div>
+                <div class="col-md-6">
+                    <strong>Preferred Locations:</strong> {{ candidate.preferred_locations }}
+                </div>
+            </div>
+
+            <div class="row mb-2">
+                <div class="col-md-6">
+                    <strong>CTC (Current):</strong> {{ candidate.ctc_current }}
+                </div>
+                <div class="col-md-6">
+                    <strong>ECTC (Expected):</strong> {{ candidate.ectc }}
+                </div>
+            </div>
+
+            <div class="mb-2">
+                <strong>Key Skills:</strong> {{ candidate.key_skills }}
+            </div>
+
+            <div class="mb-2">
+                <strong>Education:</strong> {{ candidate.education }}
+            </div>
+
+            <div class="mb-2">
+                <strong>Post Graduation Degree:</strong> {{ candidate.post_graduation }}
+            </div>
+
+            <div class="mb-2">
+                <strong>PF & Docs Confirmation:</strong> {{ candidate.pf_docs_confirm }}
+            </div>
+
+            <div class="mb-2">
+                <strong>Notice Period:</strong> {{ candidate.notice_period }}
+            </div>
+
+            <div class="mb-2">
+                <strong>Notice Period Details:</strong> {{ candidate.notice_period_details }}
+            </div>
+
+            <div class="mb-2">
+                <strong>Employee Size:</strong> {{ candidate.employee_size }}
+            </div>
+
+            <div class="mb-2">
+                <strong>Companies Worked With Till Now:</strong> {{ candidate.companies_worked }}
+            </div>
+
+            <div class="mb-2">
+                <strong>Calling Status:</strong> {{ candidate.calling_status }}
+            </div>
+
+            <div class="mb-2">
+                <strong>Profile Status:</strong> {{ candidate.profile_status }}
+            </div>
+
+            <div class="mb-2">
+                <strong>Comments:</strong> {{ candidate.comments }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

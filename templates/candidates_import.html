@@ -1,0 +1,646 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container mt-4">
+  <h3>Candidate Import</h3>
+
+  <!-- Drag & Drop Upload Box -->
+  <div id="dropZone"
+       class="border border-primary rounded p-5 text-center mb-3 shadow-sm"
+       style="cursor:pointer; position:relative; background:#f9fbff;">
+    <div class="mb-2">
+      <div class="fs-5 fw-semibold">Drag & drop Excel/CSV file here or click to browse</div>
+      <div class="text-muted small">Supported: .xlsx, .xls, .csv</div>
+    </div>
+
+    <!-- Excel file name with official Excel logo, centered -->
+    <div id="chosenFile"
+         class="d-flex justify-content-center align-items-center gap-2 text-secondary small fw-bold"
+         style="display:none;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#107C41" d="M40 6H14a2 2 0 0 0-2 2v32a2 2 0 0 0 2 2h26a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2z"/>
+        <path fill="#fff" d="M20 16h4l5 8l-5 8h-4l5-8z"/>
+      </svg>
+      <span id="chosenFileName"></span>
+    </div>
+
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+  </div>
+
+  <div class="text-center">
+    <button id="uploadBtn" class="btn btn-primary shadow-sm">
+      <i class="bi bi-upload"></i> Upload File
+    </button>
+  </div>
+</div>
+
+<!-- Mapping Modal -->
+<div class="modal fade" id="mappingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content shadow-lg rounded-3">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title fw-bold"><i class="bi bi-table me-2"></i> Column Mapping</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="table-responsive" style="max-height:60vh;">
+          <table class="table table-sm table-bordered align-middle mb-0" id="mappingTableWrapper">
+            <thead class="table-light sticky-top shadow-sm">
+              <tr>
+                <th style="width:40%">Uploaded Column</th>
+                <th style="width:40%">Matched DB Column</th>
+                <th style="width:20%">Status</th>
+              </tr>
+            </thead>
+            <tbody id="mappingTable"></tbody>
+          </table>
+        </div>
+
+        <!-- Inline banners -->
+        <div id="mapInfoBanner" class="alert alert-info mt-3 d-none rounded-2 shadow-sm small"></div>
+        <div id="mapErrorBanner" class="alert alert-danger mt-3 d-none rounded-2 shadow-sm small"></div>
+        <div id="mapSuccessBanner" class="alert alert-success mt-3 d-none rounded-2 shadow-sm small"></div>
+      </div>
+
+      <div class="modal-footer d-flex justify-content-between">
+        <div id="progressInfo" class="fw-semibold text-muted small"></div>
+        <div id="commitActions">
+          <button id="commitBtn" class="btn btn-success fw-semibold px-4 shadow-sm" disabled style="opacity:0.6;">
+            <i class="bi bi-check2-circle"></i> Commit Import
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmCommitModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow rounded-3">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle me-2"></i> Confirm Import</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="confirmSummary" class="small"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="candidateReviewBtn" class="btn btn-info">
+          <i class="bi bi-person-lines-fill"></i> Candidate Review
+        </button>
+</div>
+    </div>
+  </div>
+</div>
+fetch("/candidates/import/commit", { ... })
+<!-- NEW Fullscreen Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title">Preview Data Before Import</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered">
+            <thead id="previewTableHead"></thead>
+            <tbody id="previewTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="proceedImportBtn" class="btn btn-success">Proceed Import</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Validation Modal (Full page) -->
+<div class="modal fade" id="validationModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content shadow-lg rounded-3">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title fw-bold"><i class="bi bi-check2-all me-2"></i> Validate Candidates</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="valTopBanner" class="alert alert-info small rounded-2 shadow-sm">
+          Review and fix highlighted rows. <strong>All rows must be valid</strong> before uploading.
+        </div>
+
+        <div class="table-responsive" style="max-height:75vh;">
+          <table class="table table-sm table-bordered align-middle mb-0" id="validationTableWrapper">
+            <thead id="validationThead" class="table-light sticky-top shadow-sm"></thead>
+            <tbody id="validationTbody"></tbody>
+          </table>
+        </div>
+
+        <div id="validationError" class="alert alert-danger mt-3 d-none small rounded-2 shadow-sm"></div>
+        <div id="validationSuccess" class="alert alert-success mt-3 d-none small rounded-2 shadow-sm"></div>
+      </div>
+
+      <div class="modal-footer d-flex justify-content-between">
+        <div id="validationProgress" class="fw-semibold text-muted small"></div>
+        <button id="finalCommitBtn" class="btn btn-success px-4 shadow-sm" disabled>
+          <i class="bi bi-upload"></i> Upload Candidates
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<meta name="csrf-token" content="{{ csrf_token() }}"/>
+
+<style>
+  .modal-body { padding: 1rem !important; }
+  #mappingTable td, #mappingTable th { padding: 0.5rem 0.75rem !important; }
+  .table-danger td[contenteditable="true"] { background: #fff5f5; }
+  td[contenteditable="true"] { outline: none; }
+  td[contenteditable="true"]:focus { box-shadow: inset 0 0 0 2px rgba(25,135,84,.25); background: #f6fff8; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // ==== State ====
+  let selectedFile = null;
+  let uploadId = null;
+  let mappings = [];
+  let dbColumns = [];
+  let confirming = false;
+  let totalRows = null;
+
+  // Validation modal state
+  let valColumns = [];
+  let valSchema = {};
+  let valRows = [];
+  let allValid = false;
+  let lastMapping = [];
+  let lastColumns = [];
+  let lastValidatedRows = [];
+
+  // ==== Elements ====
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const chosenFile = document.getElementById('chosenFile');
+  const chosenFileName = document.getElementById('chosenFileName');
+  const uploadBtn = document.getElementById('uploadBtn');
+
+  const mappingTable = document.getElementById('mappingTable');
+  const mapInfoBanner = document.getElementById('mapInfoBanner');
+  const mapErrorBanner = document.getElementById('mapErrorBanner');
+  const mapSuccessBanner = document.getElementById('mapSuccessBanner');
+  const progressInfo = document.getElementById('progressInfo');
+  const commitActions = document.getElementById('commitActions');
+  const commitBtn = document.getElementById('commitBtn');
+
+  const validationThead = document.getElementById('validationThead');
+  const validationTbody = document.getElementById('validationTbody');
+  const validationError = document.getElementById('validationError');
+  const validationSuccess = document.getElementById('validationSuccess');
+  const validationProgress = document.getElementById('validationProgress');
+  const finalCommitBtn = document.getElementById('finalCommitBtn');
+
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+  // ==== File selection UI ====
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('bg-light'); });
+  dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('bg-light'); });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('bg-light');
+    if (e.dataTransfer.files?.length > 0) setSelectedFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e => {
+    if (e.target.files?.length > 0) setSelectedFile(e.target.files[0]);
+  });
+  function setSelectedFile(file) {
+    selectedFile = file;
+    chosenFile.style.display = 'flex';
+    chosenFileName.textContent = file.name;
+  }
+
+  // ==== Helpers ====
+  async function safeParseJSON(response) {
+    const ct = response.headers.get('content-type') || '';
+    if (ct.includes('application/json')) return await response.json();
+    const text = await response.text();
+    throw new Error(`Unexpected response: ${text.slice(0, 300)}`);
+  }
+  function badge(text, cls) { return `<span class="badge rounded-pill ${cls}">${text}</span>`; }
+
+  // Debounce helper
+  function debounce(fn, ms) {
+    let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  }
+
+  async function rememberPairs(pairs) {
+    if (!pairs || !pairs.length) return;
+    try {
+      await fetch("/candidates/import/mapping/remember", {
+        method: "POST",
+        headers: {"Content-Type":"application/json","X-CSRFToken": csrfToken},
+        body: JSON.stringify({pairs})
+      });
+    } catch (e) {
+      console.warn("rememberPairs failed:", e);
+    }
+  }
+  const rememberOneDebounced = debounce((pair) => rememberPairs([pair]), 300);
+  // === Unique mapping helpers ===
+  function getUsedDbCols(excludeIndex = null) {
+    const used = new Set();
+    (mappings || []).forEach((m, i) => {
+      if (excludeIndex !== null && i === excludeIndex) return;
+      if (m && m.matched && m.matched !== "Not Needed") used.add(m.matched);
+    });
+    return used;
+  }
+
+  function buildOptionsForRow(selectEl, idx) {
+    // Preserve current value for this row
+    const current = (mappings[idx] && mappings[idx].matched) ? mappings[idx].matched : "";
+    const used = getUsedDbCols(idx);
+    const allowed = (dbColumns || []).filter(col => !used.has(col) || col === current);
+
+    // Clear and rebuild
+    while (selectEl.firstChild) selectEl.removeChild(selectEl.firstChild);
+
+    // -- Select --
+    selectEl.appendChild(new Option('-- Select --', ''));
+
+    // Allowed DB columns (unique except current selection)
+    allowed.forEach(col => {
+      const selected = current === col;
+      selectEl.appendChild(new Option(col, col, false, selected));
+    });
+
+    // Not Needed (always available)
+    if (!allowed.includes("Not Needed")) {
+      selectEl.appendChild(new Option("Not Needed", "Not Needed", false, current === "Not Needed"));
+    }
+  }
+
+  function refreshAllSelectOptions() {
+    const selects = document.querySelectorAll('select.form-select.form-select-sm[data-index]');
+    selects.forEach(sel => {
+      const idx = +sel.dataset.index;
+      buildOptionsForRow(sel, idx);
+    });
+  }
+
+
+  // ==== Upload file -> open mapping modal ====
+  uploadBtn.addEventListener('click', async () => {
+    if (!selectedFile) { alert('Please choose a file first.'); return; }
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('requirement_id', "{{ req_id }}");
+    try {
+      const res = await fetch("{{ url_for('import_bp.upload_candidates') }}", {
+        method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: formData
+      });
+      const data = await safeParseJSON(res);
+      if (!res.ok || data.success === false) throw new Error(data?.error || 'Upload failed');
+
+      uploadId = data.upload_id;
+      mappings = data.mappings || [];
+      dbColumns = data.db_columns || [];
+      totalRows = data.total_rows;
+      renderMappingTable();
+      updateProgress();
+
+      const modal = new bootstrap.Modal(document.getElementById('mappingModal'));
+      modal.show();
+    } catch (err) {
+      alert(`Upload error: ${err.message}`);
+    }
+  });
+
+  // ==== Render mapping rows ====
+  function renderMappingTable() {
+    mappingTable.innerHTML = '';
+    (mappings || []).forEach((m, idx) => {
+      const tr = document.createElement('tr');
+      tr.dataset.index = idx;
+
+      const tdUploaded = document.createElement('td');
+      tdUploaded.textContent = m.uploaded ?? '';
+      tr.appendChild(tdUploaded);
+
+      const tdSelect = document.createElement('td');
+      const sel = document.createElement('select');
+      sel.className = 'form-select form-select-sm';
+      sel.dataset.index = idx;
+
+      buildOptionsForRow(sel, idx)
+      sel.addEventListener('change', (e) => {
+        const i = +e.target.dataset.index;
+        const val = e.target.value || null;
+        mappings[i].matched = val;
+        mappings[i].status = val === "Not Needed" ? "Not Needed" : (val ? "Matched (Manual)" : "Not Matched");
+        mappings[i].reason = val ? "Manual" : mappings[i].reason;
+        mappings[i].confidence = val ? 1.0 : (mappings[i].confidence || 0);
+        updateRow(tr, mappings[i]);
+        updateProgress();
+
+        if (val && val !== "Not Needed") {
+          rememberOneDebounced({ uploaded: mappings[i].uploaded, matched: val });
+        }
+        // Refresh other dropdowns to enforce uniqueness
+        refreshAllSelectOptions();
+      });
+
+      tdSelect.appendChild(sel);
+      tr.appendChild(tdSelect);
+
+      const tdStatus = document.createElement('td');
+      tdStatus.dataset.role = 'status';
+      tr.appendChild(tdStatus);
+
+      updateRow(tr, m);
+      mappingTable.appendChild(tr);
+    });
+    // After initial render, enforce unique options per row
+    refreshAllSelectOptions();
+  }
+
+  function updateRow(tr, m) {
+    const tdStatus = tr.querySelector('[data-role="status"]');
+    tr.classList.remove('table-danger', 'table-warning', 'table-success');
+    tdStatus.innerHTML = '';
+
+    const conf = (m.confidence || 0);
+    let badgeHtml = '';
+    if (!m.matched) {
+      badgeHtml = `<span class="badge bg-danger">Not Matched</span>`;
+      tr.classList.add('table-danger');
+    } else if (conf >= 0.9) {
+      badgeHtml = `<span class="badge bg-success">✅ ${m.status}</span>`;
+      tr.classList.add('table-success');
+    } else if (conf >= 0.6) {
+      badgeHtml = `<span class="badge bg-warning text-dark">⚠️ ${m.status}</span>`;
+      tr.classList.add('table-warning');
+    } else {
+      badgeHtml = `<span class="badge bg-secondary">${m.status}</span>`;
+    }
+
+    const reason = m.reason ? `<div class="small text-muted">Reason: ${m.reason}</div>` : '';
+    const confText = `<div class="small text-muted">Confidence: ${Math.round(conf*100)}%</div>`;
+    tdStatus.innerHTML = badgeHtml + reason + confText;
+  }
+
+  function updateProgress() {
+    const total = mappings.length;
+    const resolved = mappings.filter(m => m.matched && m.matched !== 'Not Matched').length;
+    progressInfo.textContent = `✔ ${resolved}/${total} columns mapped`;
+    const highConfidence = mappings.filter(m => m.matched && (m.confidence || 0) >= 0.6).length;
+    commitBtn.disabled = !(resolved === total || highConfidence >= Math.ceil(total * 0.7));
+    commitBtn.style.opacity = commitBtn.disabled ? 0.6 : 1;
+  }
+
+  // ==== Commit flow (two-step): first click shows summary; second triggers validation ====
+  commitBtn.addEventListener('click', () => {
+    lastMapping = mappings;
+    localStorage.setItem('candidateMapping', JSON.stringify(
+      (typeof lastMapping !== 'undefined' && lastMapping.length ? lastMapping : mappings)
+    ));
+
+    // Bulk remember all explicit choices to persist learning even if user doesn't finish
+    const manualPairs = (mappings || []).filter(m => m.matched && m.matched !== 'Not Needed')
+      .map(m => ({ uploaded: m.uploaded, matched: m.matched }));
+    if (manualPairs.length) rememberPairs(manualPairs);
+
+    const totalCols = mappings.length;
+    const mappedCols = mappings.filter(m => m.matched && m.status !== 'Not Matched').length;
+    const lowConf = mappings.filter(m => m.matched && (m.confidence || 0) < 0.6).length;
+
+    const summaryHtml = `
+      <div class="p-3">
+        <h6 class="fw-bold mb-3">Import Summary</h6>
+        <ul class="list-group small">
+          <li class="list-group-item d-flex justify-content-between">
+            <span>Total number of rows in the sheet:</span>
+            <span id="summaryTotalRows">${totalRows ?? "Pending validation…"}</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between">
+            <span>Total number of columns mapped:</span>
+            <span>${mappedCols} / ${totalCols}</span>
+          </li>
+          <li class="list-group-item d-flex justify-content-between">
+            <span>Low-confidence mappings (please review):</span>
+            <span class="${lowConf ? 'text-danger' : 'text-success'}">${lowConf}</span>
+          </li>
+        </ul>
+      </div>`;
+
+    document.getElementById("confirmSummary").innerHTML = summaryHtml;
+    new bootstrap.Modal(document.getElementById("confirmCommitModal")).show();
+  });
+
+    // ==== Proceed Import -> Call /commit
+  document.getElementById("proceedImportBtn").addEventListener("click", () => {
+    fetch(`/commit/${uploadId}`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
+      body: JSON.stringify({upload_id: uploadId, columns: lastColumns, rows: lastValidatedRows, mapping: lastMapping})
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success && data.error) {
+        alert("Commit failed: " + data.error);
+        return;
+      }
+      setTimeout(() => {
+        localStorage.setItem('candidateMapping', JSON.stringify(
+          (typeof lastMapping !== 'undefined' && lastMapping.length ? lastMapping : mappings)
+        ));
+        window.location.href = `/import/candidates/import/review/${uploadId}`;
+      }, 800);
+    });
+  });
+
+  // ==== Build preview table with green/red rows ====
+  function buildPreviewTable(columns, rows) {
+    const head = document.getElementById("previewTableHead");
+    const body = document.getElementById("previewTableBody");
+    head.innerHTML = "<tr><th>#</th>" + columns.map(c => `<th>${c}</th>`).join("") + "<th>Status</th><th>Error</th></tr>";
+    body.innerHTML = "";
+    rows.forEach(r => {
+      let cls = (r.status === "ok") ? "table-success" : "table-danger";
+      let rowHtml = `<tr class="${cls}"><td>${r.rownum}</td>`;
+      columns.forEach(c => rowHtml += `<td>${r.data[c] || ""}</td>`);
+      rowHtml += `<td>${r.status}</td><td>${r.error || ""}</td></tr>`;
+      body.insertAdjacentHTML("beforeend", rowHtml);
+    });
+  }
+
+  // ==== Validation Table (editable) ====
+  function renderValidationTable() {
+    validationThead.innerHTML = '';
+    const trh = document.createElement('tr');
+    trh.innerHTML = `<th style="width:60px">#</th>`;
+    valColumns.forEach(col => {
+      const th = document.createElement('th');
+      th.textContent = col;
+      trh.appendChild(th);
+    });
+    trh.innerHTML += `<th style="width:220px">Status</th>`;
+    validationThead.appendChild(trh);
+
+    validationTbody.innerHTML = '';
+    let validCount = 0;
+    valRows.forEach((r, idx) => {
+      const tr = document.createElement('tr');
+      tr.dataset.index = idx;
+
+      const tdIdx = document.createElement('td');
+      tdIdx.textContent = r.rownum;
+      tr.appendChild(tdIdx);
+
+      valColumns.forEach(col => {
+        const td = document.createElement('td');
+        td.contentEditable = "true";
+        td.dataset.col = col;
+        td.textContent = r.data?.[col] ?? '';
+        td.addEventListener('blur', onCellEdit);
+        tr.appendChild(td);
+      });
+
+      const tdStatus = document.createElement('td');
+      tdStatus.classList.add('small');
+      tdStatus.dataset.role = 'status';
+      tr.appendChild(tdStatus);
+
+      updateRowValidationDisplay(tr, r);
+      if (r.status === 'ok') validCount++;
+      validationTbody.appendChild(tr);
+    });
+
+    validationProgress.textContent = `✔ ${validCount}/${valRows.length} rows valid`;
+    allValid = validCount === valRows.length;
+    finalCommitBtn.disabled = !allValid;
+  }
+
+  function onCellEdit(e) {
+    const tr = e.target.closest('tr');
+    const rowIndex = +tr.dataset.index;
+    const col = e.target.dataset.col;
+    const value = e.target.textContent.trim();
+
+    valRows[rowIndex].data[col] = value;
+    const result = validateRowClient(valRows[rowIndex].data);
+    valRows[rowIndex].status = result.ok ? 'ok' : 'error';
+    valRows[rowIndex].error = result.error || '';
+
+    updateRowValidationDisplay(tr, valRows[rowIndex]);
+    updateValidationProgress();
+  }
+
+  function updateRowValidationDisplay(tr, row) {
+    const tdStatus = tr.querySelector('[data-role="status"]');
+    tr.classList.remove('table-success', 'table-danger');
+    if (row.status === 'ok') {
+      tr.classList.add('table-success');
+      tdStatus.innerHTML = badge('Valid', 'bg-success');
+    } else {
+      tr.classList.add('table-danger');
+      tdStatus.innerHTML = badge(row.error || 'Invalid', 'bg-danger');
+    }
+  }
+
+  function updateValidationProgress() {
+    const validCount = valRows.filter(r => r.status === 'ok').length;
+    validationProgress.textContent = `✔ ${validCount}/${valRows.length} rows valid`;
+    allValid = validCount === valRows.length;
+    finalCommitBtn.disabled = !allValid;
+  }
+
+  function validateRowClient(rowData) {
+    const errors = [];
+    for (const col of valColumns) {
+      const rules = valSchema[col] || {};
+      const raw = (rowData[col] ?? '').toString().trim();
+
+      if (rules.required && !raw) errors.push(`${col} is required`);
+      if (raw && rules.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) errors.push(`${col} is not a valid email`);
+      if (raw && rules.type === 'phone' && !/^\d{7,15}$/.test(raw)) errors.push(`${col} must be digits (7–15)`);
+      if (raw && rules.type === 'integer' && !/^-?\d+$/.test(raw)) errors.push(`${col} must be an integer`);
+    }
+    return { ok: errors.length === 0, error: errors.join('; ') };
+  }
+
+  finalCommitBtn.addEventListener('click', async () => {
+    if (!allValid) {
+      const firstBad = validationTbody.querySelector('tr.table-danger');
+      if (firstBad) { firstBad.scrollIntoView({behavior:'smooth', block:'center'}); }
+      validationError.textContent = 'Please fix all highlighted rows before uploading.';
+      validationError.classList.remove('d-none');
+      return;
+    }
+    validationError.classList.add('d-none');
+
+    finalCommitBtn.disabled = true;
+    finalCommitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Uploading...`;
+    try {
+      const res = await fetch("{{ url_for('import_bp.commit_candidates') }}", {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},
+        body: JSON.stringify({
+        upload_id: uploadId,
+        columns: valColumns,
+        rows: valRows,
+        mapping: lastMapping,
+        requirement_id: "{{ req_id }}"
+      })
+
+      });
+      const data = await safeParseJSON(res);
+      if (!res.ok || data.success === false) throw new Error(data?.error || 'Commit failed');
+
+      validationSuccess.textContent = `✅ Import successful! ${data.rows_inserted ?? 0} rows were inserted.`;
+      validationSuccess.classList.remove('d-none');
+
+      setTimeout(() => {
+        const vm = bootstrap.Modal.getInstance(document.getElementById('validationModal'));
+        if (vm) vm.hide();
+        localStorage.setItem('candidateMapping', JSON.stringify(
+          (typeof lastMapping !== 'undefined' && lastMapping.length ? lastMapping : mappings)
+        ));
+        const urlParams = new URLSearchParams(window.location.search);
+        const reqId = urlParams.get("req_id") || urlParams.get("requirement_id") || "{{ req_id }}";
+        window.location.href = `/candidates/import/review/${uploadId}?req_id=${reqId}`;
+      }, 1200);
+    } catch (err) {
+      validationError.textContent = `Commit error: ${err.message}`;
+      validationError.classList.remove('d-none');
+      finalCommitBtn.disabled = false;
+      finalCommitBtn.innerHTML = `<i class="bi bi-upload"></i> Upload Candidates`;
+    }
+  });
+
+  document.getElementById("candidateReviewBtn").addEventListener("click", () => {
+    if (!uploadId) {
+      alert("No upload session found.");
+      return;
+    }
+    localStorage.setItem('candidateMapping', JSON.stringify(
+      (typeof lastMapping !== 'undefined' && lastMapping.length ? lastMapping : mappings)
+    ));
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const reqId = urlParams.get("req_id") || urlParams.get("requirement_id") || "{{ req_id }}";
+    window.location.href = `/candidates/import/review/${uploadId}?req_id=${reqId}`;
+  });
+
+  // initial progress
+  updateProgress();
+
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .page-title { font-size: 2rem; font-weight: 800; color: #0d6efd; margin: 1rem 0 0.25rem; letter-spacing: -0.2px; }
+  .top-bar { padding: 0.75rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+  .top-left-meta { font-weight: 700; color: #212529; }
+  .card-ux { border-radius: 12px; box-shadow: 0 10px 30px rgba(13,110,253,0.05); overflow: hidden; }
+  .form-section { border: 1px dashed #dee2e6; border-radius: 8px; padding: 1rem; background: #fff; flex: 1 1 0; display: flex; flex-direction: column; gap: .65rem; }
+  .form-row-eq { display: flex; gap: 1rem; align-items: stretch; }
+  .form-label { font-weight: 600; margin-bottom: .35rem; }
+  .help-text { font-size: .85rem; color: #6c757d; margin-top: .25rem; }
+  .btn-pill { border-radius: 999px; padding-left: 1rem; padding-right: 1rem; }
+  @media (max-width: 767px) { .form-row-eq { flex-direction: column; } }
+  .checkbox-list { max-height:220px; overflow:auto; padding: .25rem; }
+</style>
+
+<div class="container py-4">
+  <div class="top-bar">
+    <div class="top-left-meta">
+      {{ requirement.client_name or ('Client #' ~ requirement.id) }} &nbsp;&ndash;&nbsp; {{ requirement.requirement_name or '' }}
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('requirement_candidates', req_id=requirement.id) }}" class="btn btn-outline-info btn-sm btn-pill">
+        <i class="bi bi-people me-1"></i> View Candidates
+      </a>
+      <a href="{{ url_for('requirement_detail', req_id=requirement.id) }}" class="btn btn-primary btn-sm btn-pill">
+        <i class="bi bi-arrow-left-circle me-1"></i> Back
+      </a>
+    </div>
+  </div>
+
+  <div class="text-center">
+    <div class="page-title">Edit Requirement</div>
+  </div>
+
+  <div class="mt-3 card card-ux">
+    <div class="card-body">
+      <form method="POST" novalidate>
+        {% if csrf_token is defined %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% endif %}
+
+        <div class="form-row-eq mt-2">
+          <!-- LEFT -->
+          <div class="form-section">
+            <div>
+              <label class="form-label">Client Name</label>
+              <input autofocus type="text" name="client_name" class="form-control" value="{{ requirement.client_name or '' }}" required>
+            </div>
+
+            <div>
+              <label class="form-label">Client LinkedIn Profile</label>
+              <input type="url" name="client_linkedin_profile" class="form-control" placeholder="https://www.linkedin.com/company/..." value="{{ requirement.client_linkedin_profile or '' }}">
+            </div>
+
+            <div>
+              <label class="form-label">Client Brief Description</label>
+              <textarea name="client_brief_description" class="form-control" rows="3" placeholder="One-line about client, domain, size, etc.">{{ requirement.client_brief_description or '' }}</textarea>
+            </div>
+
+            <div>
+              <label class="form-label">Requirement Name</label>
+              <input type="text" name="requirement_name" class="form-control" value="{{ requirement.requirement_name or '' }}" required>
+            </div>
+
+            <div>
+              <label class="form-label">Experience</label>
+              <input type="text" name="experience" class="form-control" value="{{ requirement.experience or '' }}">
+            </div>
+
+            <div>
+              <label class="form-label">Mandatory Skills</label>
+              <textarea name="mandatory_skills" class="form-control" rows="3">{{ requirement.mandatory_skills or '' }}</textarea>
+            </div>
+
+            <div>
+              <label class="form-label">Job Locations</label>
+              <input type="text" name="job_locations" class="form-control" value="{{ requirement.job_locations or '' }}">
+            </div>
+
+            <div class="form-check mt-1">
+              <input class="form-check-input" type="checkbox" id="remoteCheck" name="remote" value="1" {% if requirement.remote %}checked{% endif %}>
+              <label class="form-check-label" for="remoteCheck">Remote</label>
+            </div>
+          </div>
+
+          <!-- RIGHT -->
+          <div class="form-section">
+            <div>
+              <label class="form-label">Budget</label>
+              <input type="text" name="budget" class="form-control" value="{{ requirement.budget or '' }}">
+            </div>
+
+            <div style="flex:1 1 auto;">
+              <label class="form-label">Job Description</label>
+              <textarea name="job_description" class="form-control" rows="6">{{ requirement.job_description or '' }}</textarea>
+            </div>
+
+            <div>
+              <label class="form-label">Job Details (Internal)</label>
+              <textarea name="job_d_th_d" class="form-control" rows="3">{{ requirement.job_d_th_d or '' }}</textarea>
+            </div>
+
+            <div>
+              <label class="form-label">Status</label>
+              <select name="status" class="form-select">
+                {% for s in ['Active','Hold','Closed'] %}
+                  <option value="{{ s }}" {% if requirement.status == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <!-- Multi-assign checklist -->
+            <div>
+              <label class="form-label">Assign To (multiple)</label>
+              {% set selected = (requirement.assigned_to or '') %}
+              {% set norm = selected|replace(', ', ',')|lower %}
+              {% set assigned_list = norm.split(',') if norm else [] %}
+              <div class="border rounded p-2 checkbox-list" style="max-height:220px; overflow:auto;">
+                {% for uname in recruiters %}
+                  {% set uname_norm = uname|lower %}
+                  {% set is_checked = uname_norm in assigned_list %}
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="assigned_to" value="{{ uname }}" id="chk_{{ loop.index }}" {% if is_checked %}checked{% endif %}>
+                    <label class="form-check-label" for="chk_{{ loop.index }}">{{ uname }}</label>
+                  </div>
+                {% endfor %}
+                {% if recruiters|length == 0 %}
+                  <div class="text-muted small">No recruiters/admins found.</div>
+                {% endif %}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-3">
+          <button type="submit" class="btn btn-primary btn-pill">Save changes</button>
+          <a href="{{ url_for('requirements') }}" class="btn btn-danger btn-pill">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    const el = document.querySelector('input[autofocus]');
+    if(el) el.focus({preventScroll:true});
+  });
+</script>
+{% endblock %}

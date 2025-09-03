@@ -1,0 +1,82 @@
+
+:root{
+  --hub-size: 450px;   /* bigger hub box */
+  --center: 270px;     /* bigger center circle */
+  --sat: 135px;        /* bigger satellites */
+}
+
+/* grid layout */
+.grid {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  gap: 40px 40px;  /* increase vertical & horizontal spacing */
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+
+/* hub card */
+.hub {
+  position: relative;
+  height: var(--hub-size);
+  border-radius: 20px;
+  padding: 20px 14px 14px;
+  background: #fff;            /* white box background */
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+}
+
+/* title bar inside box */
+.hub .title {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 8px 8px;
+  color: #444;
+  font-weight: 600; font-size: 11px;
+  text-transform: uppercase;
+}
+
+/* badge */
+.badge {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-weight: 800;
+  background: #000; color: #fff; /* black badge */
+}
+
+.canvas { position: relative; width: 100%; height: calc(var(--hub-size) - 60px); }
+
+/* center circle */
+.center {
+  position: absolute; inset: 0; margin: auto;
+  width: var(--center); height: var(--center); border-radius: 50%;
+  background: #ffd966;   /* black */
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center;
+}
+.center img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; }
+.center .initials {
+  width: 60px; height: 60px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-weight: 800; font-size: 18px;
+  background: #fff; color: #000;
+}
+.center .name { margin-top: 10px; font-weight: 700; color: #fff; }
+
+/* satellite ring */
+.ring { display: none; } /* optional: hide dashed ring */
+
+/* satellites */
+.sat { position: absolute; width: 100%; height: 100%; transform-origin: 50% 50%; }
+.sat .bubble {
+  width: var(--sat); height: var(--sat); border-radius: 50%;
+  background: #66cc99;    /* black satellites */
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center;
+  box-shadow: 0 6px 16px rgba(0,0,0,.35);
+}
+.num { font-size: 20px; font-weight: 900; color: #fff; }
+.label { font-size: 10px; text-transform: uppercase; color: #ddd; margin-top: 6px; }
+
+.s1 { transform: rotate(15deg); }
+.s2 { transform: rotate(105deg); }
+.s3 { transform: rotate(195deg); }
+.s4 { transform: rotate(285deg); }
+.sat .bubble { position: absolute; top: -5%; left: 62%; transform: translate(-50%,-50%); }

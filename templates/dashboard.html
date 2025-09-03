@@ -1,0 +1,1400 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .dashboard-wrapper { max-width:1200px; margin: 0 auto 22px; padding:0 18px;  margin-top:0; padding-top:0; }
+  .dashboard-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom: 0; }
+  .dashboard-title { font-size:28px; font-weight:700; margin:0; }
+  .dashboard-sub { color:#6b7280; font-size:13px; }
+
+  .controls { display:flex; gap:8px; align-items:center; }
+  .controls button { padding:8px 10px; border-radius:8px; border:1px solid #e6edf3; background:#fff; cursor:pointer; }
+
+  .widget-grid { display:grid; grid-template-columns: repeat(12, 1fr); gap:16px; margin-top:20px; }
+  .widget { grid-column: span 6; background:#fff; border-radius:10px; box-shadow:0 6px 18px rgba(40,46,60,0.04); padding:16px; position:relative; }
+  .widget.small { grid-column: span 4; }
+  .widget.full  { grid-column: 1 / -1; }
+  .widget.dragging { opacity:.6; }
+  .widget .widget-actions { position:absolute; top:8px; right:8px; display:none; gap:6px; }
+  .customizing .widget .widget-actions { display:flex; }
+  .widget .handle { cursor:grab; }
+
+  .kpi h6 { margin:0; font-size:13px; color:#475569; display:flex; align-items:center; gap:8px; }
+  .kpi .value { font-size:28px; font-weight:700; margin-top:6px; }
+  .legend { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .legend .item { display:flex; gap:8px; align-items:center; font-size:13px; color:#475569; }
+  .legend .chip { width:12px; height:12px; border-radius:3px; }
+  .small-muted { color:#64748b; font-size:13px; }
+  canvas { width:100% !important; height:auto !important; }
+
+  /* Colorful KPI helpers */
+  .kpi-blue    { background: linear-gradient(135deg,#e0f2fe, #ffffff); }
+  .kpi-green   { background: linear-gradient(135deg,#dcfce7, #ffffff); }
+  .kpi-purple  { background: linear-gradient(135deg,#ede9fe, #ffffff); }
+  .kpi-amber   { background: linear-gradient(135deg,#fef3c7, #ffffff); }
+  .kpi-pink    { background: linear-gradient(135deg,#ffe4e6, #ffffff); }
+
+  :root{
+    --c1:#3b82f6; --c2:#10b981; --c3:#f59e0b; --c4:#ef4444; --c5:#8b5cf6;
+    --c6:#06b6d4; --c7:#a3e635; --c8:#ec4899; --c9:#22c55e; --c10:#60a5fa;
+  }
+
+  @media (max-width: 992px) {
+    .widget.small { grid-column: span 6; }
+  }
+  @media (max-width: 576px) {
+    .widget, .widget.small { grid-column: 1 / -1; }
+  }
+
+
+/* Buttons – solid, readable */
+.controls .btn { border-radius:10px; font-weight:600; }
+.controls .btn, .controls .btn:visited { color:#0f172a; }
+.controls .btn:hover { filter:brightness(0.97); }
+
+.controls .btn-outline-secondary { background:#f8fafc; border-color:#cbd5e1; }
+.controls .btn-outline-primary  { background:#e0f2fe; border-color:#93c5fd; color:#1e3a8a; }
+.controls .btn-primary          { background:#2563eb; border-color:#2563eb; color:#fff; }
+.controls .btn-success          { background:#16a34a; border-color:#16a34a; color:#fff; }
+.controls .btn-outline-danger   { background:#fee2e2; border-color:#fca5a5; color:#7f1d1d; }
+
+/* Make buttons readable even when page is dimmed (modal/backdrop/customize) */
+.customizing .controls .btn { box-shadow:0 0 0 1px rgba(0,0,0,0.05) inset; }
+
+/* Lower chart heights */
+#recruiterChart,
+#candRecruiterChart,
+#candTodayChart,
+#candYesterdayChart { height: 220px !important; } /* ~under half of a card */
+
+
+  .clickable{cursor:pointer}
+
+  /* --- Client filter (requirement pipeline) --- */
+  .client-filter{display:flex;align-items:center;gap:10px;margin-bottom:15px;padding:10px;background:#f8f9fa;border-radius:8px}
+  .client-filter label{margin:0;font-weight:600}
+  .client-filter select{width:220px}
+
+
+  /* --- Welcome Banner --- */
+  
+.welcome-banner {
+  display: none;
+  width: 100%;
+  background: #fef9c3; /* light yellow */
+  border-bottom: 1px solid #facc15;
+  padding: 8px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #1f2937;
+ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; margin:0;  white-space:nowrap; display:flex; align-items:center; margin:0;  width:fit-content; margin:0 auto; padding:8px 16px; border-radius:6px;  margin-top:0;  margin-top:-14px; position:relative; z-index:1; }
+.welcome-banner .wb-icon { margin-right: 8px; }
+  .welcome-banner .flex-fill{display:flex; align-items:center; gap:12px; min-width:0;}
+  .welcome-banner .wb-title, .welcome-banner .wb-sub{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.welcome-banner .wb-sub { display:inline; margin-left:12px; font-weight:normal; color:#374151; }
+.welcome-banner .wb-close { display:none; }
+
+
+
+</style>
+<!-- Welcome / Greeting Banner (moved above header buttons) -->
+<div id="welcomeBanner" class="welcome-banner d-flex"
+     role="region" aria-live="polite"
+     data-first-name="{{ (current_user.first_name if current_user and current_user.first_name else session.get('first_name') or '') | e }}"
+  <i id="wbIcon" class="wb-icon bi"></i>
+  <div class="flex-fill">
+    <div class="wb-title" id="wbTitle">Welcome!</div>
+    <div class="wb-sub" id="wbSub"></div>
+  </div>
+</div>
+
+
+<div class="dashboard-wrapper">
+  <div class="dashboard-header">
+    <div>
+      <h1 class="dashboard-title">Dashboard</h1>
+      <div class="dashboard-sub">Overview of requirements & candidate pipeline</div>
+    </div>
+    <div class="controls" role="region" aria-label="Dashboard controls">
+      {% if session.get('role') == 'admin' %}
+      <a href="{{ url_for('users') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-people"></i> User Management</a>
+      {% endif %}
+      <button id="refreshBtn" class="btn btn-outline-secondary btn-sm">Refresh</button>
+      <button id="openReqPipelineBtn" class="btn btn-primary ms-2">Requirement Pipeline</button>
+      <button id="openRecruiterPipelineBtn" class="btn btn-primary ms-2">Recruiter Pipeline</button>
+
+{% if session.get('role') == 'admin' %}
+      <button id="customizeBtn" class="btn btn-primary btn-sm">Customize</button>
+      <button id="addWidgetsBtn" class="btn btn-outline-primary btn-sm">Add widgets</button>
+<button id="openBuilderBtn" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#builderModal">Create chart</button>
+<button id="saveLayoutBtn" class="btn btn-success btn-sm d-none">Save for everyone</button>
+      <button id="cancelCustomizeBtn" class="btn btn-outline-secondary btn-sm d-none">Cancel</button>
+      <button id="resetLayoutBtn" class="btn btn-outline-danger btn-sm d-none">Reset to default</button>
+      {% endif %}
+    
+
+
+</div>
+  </div>
+
+  <div id="grid" class="widget-grid">
+    <div class="widget small kpi kpi-blue" data-widget-id="kpi_total_candidates">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget" title="Remove"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6 class="handle"><i class="bi bi-people-fill"></i> Total Candidates</h6>
+      <div id="kpi_total_candidates" class="value">—</div>
+      <div class="small text-muted">Click to drill down</div>
+    </div>
+
+    <div class="widget small kpi kpi-green" data-widget-id="kpi_new_candidates_30">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6 class="handle"><i class="bi bi-graph-up"></i> New Candidates (30d)</h6>
+      <div id="kpi_new_candidates_30" class="value">—</div>
+      <div class="small text-muted">Click to drill down</div>
+    </div>
+    
+     
+    <div class="widget small kpi kpi-purple" data-widget-id="kpi_r2_select">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6 class="handle"><i class="bi bi-check2-circle"></i> R2 Select</h6>
+      <div id="kpi_r2_select" class="value">—</div>
+      <div class="small text-muted">Click to drill down</div>
+    </div>
+
+    <div class="widget small kpi kpi-amber" data-widget-id="kpi_interviews_today">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6 class="handle"><i class="bi bi-calendar-event"></i> Interviews Today</h6>
+      <div id="kpi_interviews_today" class="value">—</div>
+      <div class="small text-muted">Click to drill down</div>
+    </div>
+
+    <div class="widget small kpi kpi-pink" data-widget-id="kpi_interviews_tomorrow">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6 class="handle"><i class="bi bi-calendar2-event"></i> Interviews Tomorrow</h6>
+      <div id="kpi_interviews_tomorrow" class="value">—</div>
+      <div class="small text-muted">Click to drill down</div>
+    </div>
+
+    <div class="widget small kpi" data-widget-id="kpi_total_requirements">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6 class="handle"><i class="bi bi-list-task"></i> Total Requirements</h6>
+      <div id="total_requirements" class="value">—</div>
+    </div>
+
+
+
+    <div class="widget" data-widget-id="chart_status">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6>Requirements: Active / Hold / Closed</h6>
+      <div class="small-muted">Click a bar to view requirements with that status</div>
+      <canvas id="statusChart" aria-label="Status distribution chart"></canvas>
+      <div id="statusLegend" class="legend"></div>
+    </div>
+
+    <div class="widget" data-widget-id="chart_reqs_per_recruiter">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6>Requirements per Recruiter</h6>
+      <div class="small-muted">Click a bar to filter requirements by recruiter</div>
+      <canvas id="recruiterChart" aria-label="Requirements per recruiter chart"></canvas>
+    </div>
+
+    <div class="widget" data-widget-id="chart_cands_per_recruiter">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6>Recruiter Productivity (Candidates — All Time)</h6>
+      <div class="small-muted">Click a bar to drill down</div>
+      <canvas id="candRecruiterChart" aria-label="Candidates per recruiter chart"></canvas>
+    </div>
+
+    <div class="widget" data-widget-id="chart_profiles_today">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6>Profiles Added — Today</h6>
+      <div class="small-muted">Click a bar to drill down</div>
+      <canvas id="candTodayChart" aria-label="Profiles today per recruiter"></canvas>
+    </div>
+
+    <div class="widget" data-widget-id="chart_profiles_yesterday">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6>Profiles Added — Yesterday</h6>
+      <div class="small-muted">Click a bar to drill down</div>
+      <canvas id="candYesterdayChart" aria-label="Profiles yesterday per recruiter"></canvas>
+    </div>
+  <div class="widget full clickable" data-widget-id="chart_req_pipeline">
+  <div class="widget-actions">
+    <span class="handle bi bi-grip-horizontal"></span>
+    <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <h6>Requirement Pipeline (Active)</h6>
+</div>
+  
+    <div class="widget small kpi kpi-blue" data-widget-id="kpi_combined_offer_pipeline">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget" title="Remove"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6 class="handle"><i class="bi bi-award"></i> Final Stage Candidates</h6>
+      <div id="kpi_combined_offer_pipeline" class="value">—</div>
+      <div class="small text-muted">Statuses: R3 FBP, HR Round, R3 Scheduled, Offered</div>
+    </div>
+
+    <div class="widget small kpi kpi-red" data-widget-id="kpi_r3_rejected">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget" title="Remove"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6 class="handle"><i class="bi bi-x-octagon"></i> R3 Rejected Candidates</h6>
+      <div id="kpi_r3_rejected" class="value">—</div>
+      <div class="small text-muted">Total rejected at R3 stage</div>
+    </div>
+
+    <div class="widget small kpi kpi-purple" data-widget-id="kpi_recent_fbp">
+      <div class="widget-actions">
+        <span class="handle bi bi-grip-horizontal"></span>
+        <button class="btn btn-sm btn-outline-danger remove-widget" title="Remove"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <h6 class="handle"><i class="bi bi-clock-history"></i> FBP Candidates (3 days)</h6>
+      <div id="kpi_recent_fbp" class="value">—</div>
+      <div class="small text-muted">R1/R2/R3 FBP in last 3 days</div>
+    </div>
+
+<div id="dashMessage" class="empty" style="display:none;"></div>
+</div>
+
+<!-- Widget Library Modal (admin only) -->
+<div class="modal fade" id="widgetLibrary" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add widgets</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        {% set W = [
+          ('kpi_total_candidates','Total Candidates'),
+          ('kpi_new_candidates_30','New Candidates (30d)'),
+          ('kpi_r2_select','R2 Select'),
+          ('kpi_interviews_today','Interviews Today'),
+          ('kpi_interviews_tomorrow','Interviews Tomorrow'),
+          ('kpi_total_requirements','Total Requirements'),
+          ('chart_status','Requirements Status Donut'),
+          ('chart_reqs_per_recruiter','Requirements per Recruiter'),
+          ('chart_cands_per_recruiter','Candidates per Recruiter (All Time)'),
+          ('chart_profiles_today','Profiles Today per Recruiter'),
+          ('chart_profiles_yesterday','Profiles Yesterday per Recruiter'),
+          ('chart_req_pipeline','Requirement Pipeline'),
+          ('kpi_combined_offer_pipeline','Final Stage Candidates'),
+          ('kpi_r3_rejected','R3 Rejected Candidates'),
+          ('kpi_recent_fbp','FBP Candidates (3 days)')
+        ] %}
+        {% for wid, label in W %}
+        <div class="form-check">
+          <input class="form-check-input lib-item" type="checkbox" value="{{ wid }}" id="lib_{{ wid }}">
+          <label class="form-check-label" for="lib_{{ wid }}">{{ label }}</label>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="modal-footer">
+        <button id="addSelectedWidgets" class="btn btn-primary">Add selected</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="builderModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Custom chart</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Dataset</label>
+          <select id="b_dataset" class="form-select">
+            <option value="candidates">Candidates</option>
+            <option value="requirements">Requirements</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Group by</label>
+          <select id="b_group" class="form-select">
+            <option value="added_by">Added By</option>
+            <option value="profile_status">Profile Status</option>
+            <option value="calling_status">Calling Status</option>
+            <option value="client_name">Client</option>
+            <option value="month">Month</option>
+          </select>
+        </div>
+        <div class="mb-2 d-flex gap-2">
+          <div class="flex-fill">
+            <label class="form-label">From</label>
+            <input type="date" id="b_from" class="form-control">
+          </div>
+          <div class="flex-fill">
+            <label class="form-label">To</label>
+            <input type="date" id="b_to" class="form-control">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Optional filter value</label>
+          <input type="text" id="b_filter_value" class="form-control" placeholder="e.g., client name, status, etc.">
+          <div class="form-text">We auto-map your filter to the right field.</div>
+        </div>
+        <div id="b_preview" class="p-2 border rounded" style="min-height:80px;">Preview will appear here…</div>
+      </div>
+      <div class="modal-footer">
+        <button id="b_preview_btn" class="btn btn-outline-secondary">Preview</button>
+        {% if session.get('role') == 'admin' %}
+        <button id="b_pin_btn" class="btn btn-success">Pin to dashboard</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+const isAdmin = {{ 'true' if session.get('role') == 'admin' else 'false' }};
+const isRecruiter = {{ 'true' if session.get('role') == 'recruiter' else 'false' }};
+
+/* ===== colors & helpers ===== */
+const statusColors = ['#2b8ce6', '#f59e0b', '#10b981'];
+const palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#a3e635','#ec4899','#22c55e','#60a5fa'];
+const colorsFor = (n)=>Array.from({length:n},(_,i)=>palette[i%palette.length]);
+
+/* ===== Layout (server-side shared) ===== */
+const DEFAULT_WIDGETS = [
+  'kpi_total_candidates','kpi_new_candidates_30','kpi_r2_select',
+  'kpi_interviews_today','kpi_interviews_tomorrow','kpi_total_requirements',
+  'chart_req_pipeline','chart_status','chart_reqs_per_recruiter','chart_cands_per_recruiter',
+  'chart_profiles_today','chart_profiles_yesterday',
+  'kpi_combined_offer_pipeline','kpi_r3_rejected','kpi_recent_fbp'
+];
+
+function getCurrentIds(){
+  return [...document.querySelectorAll('#grid .widget')]
+    .filter(w=>!w.classList.contains('d-none'))
+    .map(w=>w.dataset.widgetId);
+}
+function applyLayout(ids){
+  const grid = document.getElementById('grid');
+  ids.forEach(id=>{
+    const el = grid.querySelector(`.widget[data-widget-id="${id}"]`);
+    if(el) grid.appendChild(el);
+  });
+  document.querySelectorAll('#grid .widget').forEach(el=>{
+    if(!ids.includes(el.dataset.widgetId)) el.classList.add('d-none'); else el.classList.remove('d-none');
+  });
+}
+async function fetchLayout(){
+  try{
+    const r = await fetch('/dashboard_layout');
+    const j = await r.json();
+    if(Array.isArray(j.layout)) return j.layout;
+  }catch(e){ console.warn('layout GET failed', e); }
+  return [...DEFAULT_WIDGETS];
+}
+async function saveLayout(ids){
+  if(!isAdmin) return;
+  try{
+    const r = await fetch('/dashboard_layout', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({layout: ids})
+    });
+    const j = await r.json();
+    if(!r.ok){ alert('Failed to save layout: ' + (j.error||r.status)); }
+  }catch(e){
+    alert('Failed to save layout.');
+  }
+}
+
+let customizing = false, sortable = null;
+function setCustomizeMode(on){
+  if(!isAdmin) return;
+  customizing = on;
+  document.body.classList.toggle('customizing', on);
+  document.getElementById('saveLayoutBtn').classList.toggle('d-none', !on);
+  document.getElementById('cancelCustomizeBtn').classList.toggle('d-none', !on);
+  document.getElementById('resetLayoutBtn').classList.toggle('d-none', !on);
+  if(on){
+    sortable = Sortable.create(document.getElementById('grid'), {
+      animation: 150,
+      handle: '.handle',
+      onEnd: () => {}
+    });
+  }else{
+    if(sortable){ sortable.destroy(); sortable = null; }
+  }
+}
+
+/* remove / add widget (admin only) */
+function hideWidget(id){
+  if(!isAdmin) return;
+  const el = document.querySelector(`.widget[data-widget-id="${id}"]`);
+  if(el){ el.classList.add('d-none'); }
+}
+function showWidget(id){
+  if(!isAdmin) return;
+  const el = document.querySelector(`.widget[data-widget-id="${id}"]`);
+  if(el){ el.classList.remove('d-none'); }
+}
+
+/* Button wiring */
+document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
+if(isAdmin){
+  document.getElementById('customizeBtn').addEventListener('click', async ()=>{
+    if(!customizing){
+      setCustomizeMode(true);
+    }
+  });
+  document.getElementById('cancelCustomizeBtn').addEventListener('click', ()=>{
+    setCustomizeMode(false);
+    // reload server layout
+    fetchLayout().then(applyLayout);
+  });
+  document.getElementById('saveLayoutBtn').addEventListener('click', async ()=>{
+    const ids = getCurrentIds();
+    await saveLayout(ids);
+    setCustomizeMode(false);
+  });
+  document.getElementById('resetLayoutBtn').addEventListener('click', async ()=>{
+    applyLayout(DEFAULT_WIDGETS);
+    await saveLayout(DEFAULT_WIDGETS);
+    setCustomizeMode(false);
+  });
+  document.getElementById('addWidgetsBtn').addEventListener('click', ()=>{
+    const modal = new bootstrap.Modal(document.getElementById('widgetLibrary'));
+    // pre-check only hidden widgets
+    document.querySelectorAll('#widgetLibrary .lib-item').forEach(cb=>{
+      const id = cb.value;
+      const hidden = document.querySelector(`.widget[data-widget-id="${id}"]`).classList.contains('d-none');
+      cb.checked = hidden;
+    });
+    modal.show();
+  });
+  document.getElementById('addSelectedWidgets').addEventListener('click', ()=>{
+    document.querySelectorAll('#widgetLibrary .lib-item:checked').forEach(cb=> showWidget(cb.value));
+    bootstrap.Modal.getInstance(document.getElementById('widgetLibrary')).hide();
+  });
+  document.querySelectorAll('.remove-widget').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const card = e.currentTarget.closest('.widget');
+      hideWidget(card.dataset.widgetId);
+    });
+  });
+}else{
+  // hide admin-only buttons if somehow rendered
+  ['customizeBtn','addWidgetsBtn','saveLayoutBtn','cancelCustomizeBtn','resetLayoutBtn'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.classList.add('d-none');
+  });
+  // also hide remove buttons
+  document.querySelectorAll('.widget .widget-actions').forEach(el=> el.remove());
+}
+
+/* ===== Charts ===== */
+let statusChart=null, recruiterChart=null, candRecruiterChart=null, candTodayChart=null, candYesterdayChart=null;
+
+function normalizeRecruiters(list){
+  const map={};
+  (list||[]).forEach(r=>{
+    const name = (r.username!==undefined)? String(r.username) : (r.assigned_to || 'Unassigned');
+    const cnt = Number(r.cnt)||0;
+    const parts = name.split(',').map(p=>p.trim()).filter(Boolean);
+    if(!parts.length) map['Unassigned']=(map['Unassigned']||0)+cnt;
+    else parts.forEach(p=> map[p]=(map[p]||0)+cnt);
+  });
+  return map;
+}
+
+async function loadDashboard(){
+  const msgEl = document.getElementById('dashMessage');
+  try{
+    msgEl.style.display='block'; msgEl.textContent='Loading…';
+    const res = await fetch('/dashboard_data_plus');
+    const data = await res.json();
+    msgEl.style.display='none';
+
+    // KPIs
+    document.getElementById('kpi_total_candidates')  .innerText = data.cand_total ?? 0;
+    document.getElementById('kpi_new_candidates_30').innerText = data.cand_new_30 ?? 0;
+    document.getElementById('kpi_r2_select')        .innerText = data.r2_select_total ?? 0;
+    document.getElementById('kpi_interviews_today') .innerText = data.interviews_today ?? 0;
+    document.getElementById('kpi_interviews_tomorrow').innerText = data.interviews_tomorrow ?? 0;
+    document.getElementById('total_requirements')   .innerText = data.total_requirements ?? 0;
+    document.getElementById('kpi_combined_offer_pipeline').innerText = data.final_stage_candidates ?? 0;
+    document.getElementById('kpi_r3_rejected').innerText = data.r3_rejected ?? 0;
+    document.getElementById('kpi_recent_fbp').innerText = data.recent_fbp ?? 0;
+
+    // donut
+    const status_counts = Array.isArray(data.status_counts)? data.status_counts : [];
+    const statusMap = {Active:0, Hold:0, Closed:0};
+    status_counts.forEach(s=> statusMap[s.status]=Number(s.cnt)||0);
+    const sLabels = Object.keys(statusMap), sValues = sLabels.map(l=>statusMap[l]);
+
+    if (statusChart) statusChart.destroy();
+statusChart = new Chart(document.getElementById('statusChart'), {
+  type: 'bar',
+  data: {
+    labels: sLabels,
+    datasets: [{ data: sValues, backgroundColor: statusColors }]
+  },
+  options: {
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    onClick: (e, items) => {
+      if (items?.length) {
+        const status = sLabels[items[0].index];
+        location.href = '/requirements?status=' + encodeURIComponent(status);
+      }
+    }
+  }
+});
+    // legend
+    const legend=document.getElementById('statusLegend'); legend.innerHTML='';
+    sLabels.forEach((lab,i)=>{ const div=document.createElement('div'); div.className='item';
+      div.innerHTML=`<span class="chip" style="background:${statusColors[i]}"></span><span>${lab} — ${sValues[i]}</span>`; legend.appendChild(div); });
+
+    // requirements per recruiter
+    const normReq = normalizeRecruiters(data.per_recruiter_requirements||[]);
+    const r = Object.entries(normReq).sort((a,b)=>b[1]-a[1]).slice(0,20);
+    if(recruiterChart) recruiterChart.destroy();
+    recruiterChart = new Chart(document.getElementById('recruiterChart'), {
+      type:'bar', data:{ labels:r.map(x=>x[0]), datasets:[{ data:r.map(x=>x[1]), backgroundColor: colorsFor(r.length)}] },
+      options:{ plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}},
+        onClick:(e,items)=>{ if(items?.length){ const name=r[items[0].index][0]; if(confirm('Open requirements for \"'+name+'\"?')) location.href='/requirements?assigned_to='+encodeURIComponent(name); } } }
+    });
+
+    // candidates per recruiter (all time)
+    const cAll = data.per_recruiter_candidates || [];
+    if(candRecruiterChart) candRecruiterChart.destroy();
+    candRecruiterChart = new Chart(document.getElementById('candRecruiterChart'), {
+      type:'bar', data:{ labels:cAll.map(x=>x.username||'Unknown'), datasets:[{ data:cAll.map(x=>+x.cnt||0), backgroundColor: colorsFor(cAll.length)}] },
+      options:{ plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}},
+        onClick:(e,items)=>{ if(items?.length){ const who=cAll[items[0].index].username||'Unknown'; openDrill('by_recruiter','Candidates added by '+who,{recruiter:who}); } } }
+    });
+
+    // today
+    const cToday = data.per_recruiter_candidates_today || [];
+    if(candTodayChart) candTodayChart.destroy();
+    candTodayChart = new Chart(document.getElementById('candTodayChart'), {
+      type:'bar', data:{ labels:cToday.map(x=>x.username||'Unknown'), datasets:[{ data:cToday.map(x=>+x.cnt||0), backgroundColor: colorsFor(cToday.length)}] },
+      options:{ plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}},
+        onClick:(e,items)=>{ if(items?.length){ const who=cToday[items[0].index].username||'Unknown'; openDrill('by_recruiter_today','Profiles added today by '+who,{recruiter:who}); } } }
+    });
+
+    // yesterday
+    const cY = data.per_recruiter_candidates_yesterday || [];
+    if(candYesterdayChart) candYesterdayChart.destroy();
+    candYesterdayChart = new Chart(document.getElementById('candYesterdayChart'), {
+      type:'bar', data:{ labels:cY.map(x=>x.username||'Unknown'), datasets:[{ data:cY.map(x=>+x.cnt||0), backgroundColor: colorsFor(cY.length)}] },
+      options:{ plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}},
+        onClick:(e,items)=>{ if(items?.length){ const who=cY[items[0].index].username||'Unknown'; openDrill('by_recruiter_yesterday','Profiles added yesterday by '+who,{recruiter:who}); } } }
+    });
+
+  }catch(e){
+    console.error(e);
+    msgEl.style.display='block'; msgEl.textContent='Unable to load dashboard data.';
+  }
+}
+
+async function openDrill(scope,title,extra={}){
+  const modalEl = document.getElementById('drillModal');
+  const modal = new bootstrap.Modal(modalEl);
+  document.getElementById('drillTitle').textContent = title||'Details';
+  document.getElementById('drillSpinner').classList.remove('d-none');
+  document.getElementById('drillContent').classList.add('d-none');
+
+  const params = new URLSearchParams({scope, ...(extra.recruiter?{recruiter:extra.recruiter}:{})});
+  if (isRecruiter && (scope==='interviews_today' || scope==='interviews_tomorrow')) {
+    params.set('mine','1');
+  }
+  try{
+    const res = await fetch('/dashboard_drilldown?'+params.toString(), {headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const html = await res.text();
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent'); content.classList.remove('d-none'); content.innerHTML = html;
+  }catch{
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent'); content.classList.remove('d-none'); content.innerHTML = "<div class='text-danger p-3'>Failed to load.</div>";
+  }
+  modal.show();
+}
+
+/* init */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  const layout = await fetchLayout();
+  applyLayout(layout);
+  // wire KPI clicks
+  const clickMap = {
+    'kpi_total_candidates':      ['total_candidates','All Candidates'],
+    'kpi_new_candidates_30':     ['new_candidates_30','New Candidates (Last 30 Days)'],
+    'kpi_r2_select':             ['r2_select','R2 Select — All Candidates'],
+    'kpi_interviews_today':      ['interviews_today','Interviews — Today'],
+    'kpi_interviews_tomorrow':   ['interviews_tomorrow','Interviews — Tomorrow'],
+    'kpi_combined_offer_pipeline': ['combined_offer_pipeline', 'Final Stage Candidates'],
+    'kpi_r3_rejected': ['r3_rejected', 'R3 Rejected Candidates'],
+    'kpi_recent_fbp': ['recent_fbp', 'Recent FBP Candidates (3 days)']
+  };
+  Object.entries(clickMap).forEach(([id,[scope,title]])=>{
+    const el = document.querySelector(`[data-widget-id="${id}"]`);
+    if(el) el.addEventListener('click', ()=> openDrill(scope,title));
+  });
+
+  loadDashboard();
+});
+
+// Open grid on tile click
+document.addEventListener('click', async (ev)=>{
+  const card = ev.target.closest('[data-widget-id="chart_req_pipeline"]');
+  if(!card) return;
+  const modalEl = document.getElementById('drillModal');
+  const modal = new bootstrap.Modal(modalEl);
+  document.getElementById('drillTitle').textContent = 'Requirement Pipeline (Active)';
+  document.getElementById('drillSpinner').classList.remove('d-none');
+  document.getElementById('drillContent').classList.add('d-none');
+  try{
+    const res = await fetch('/dashboard_requirement_pipeline_grid', {headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const html = await res.text();
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = html;
+  }catch{
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = "<div class='p-3 text-danger'>Failed to load.</div>";
+  }
+  modal.show();
+});
+
+// In-grid count click -> fetch candidate table
+document.getElementById('drillContent')?.addEventListener('click', async (ev)=>{
+  const a = ev.target.closest('a.rp-link');
+  if(!a) return;
+  ev.preventDefault();
+  const req_id = a.getAttribute('data-req');
+  const status = a.getAttribute('data-status');
+  document.getElementById('drillTitle').textContent = `Requirement • ${status}`;
+  document.getElementById('drillSpinner').classList.remove('d-none');
+  document.getElementById('drillContent').classList.add('d-none');
+  try{
+    const res = await fetch(`/dashboard_requirement_pipeline_table?req_id=${encodeURIComponent(req_id)}&status=${encodeURIComponent(status)}`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const html = await res.text();
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = html;
+  }catch{
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = "<div class='p-3 text-danger'>Failed to load.</div>";
+  }
+});
+
+
+// Header button: open Requirement Pipeline grid
+document.getElementById('openReqPipelineBtn')?.addEventListener('click', async ()=>{
+  const modalEl = document.getElementById('drillModal');
+  const modal = new bootstrap.Modal(modalEl);
+  document.getElementById('drillTitle').textContent = 'Requirement Pipeline (Active)';
+  document.getElementById('drillSpinner').classList.remove('d-none');
+  document.getElementById('drillContent').classList.add('d-none');
+  try{
+    const res = await fetch('/dashboard_requirement_pipeline_grid', {headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const html = await res.text();
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = html;
+  }catch{
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = "<div class='p-3 text-danger'>Failed to load.</div>";
+  }
+  modal.show();
+});
+
+// In-grid count click -> candidate table
+document.getElementById('drillContent')?.addEventListener('click', async (ev)=>{
+  const a = ev.target.closest('a.rp-link'); if(!a) return;
+  ev.preventDefault();
+  const req_id = a.getAttribute('data-req');
+  const status = a.getAttribute('data-status');
+  document.getElementById('drillTitle').textContent = `Requirement • ${status}`;
+  document.getElementById('drillSpinner').classList.remove('d-none');
+  document.getElementById('drillContent').classList.add('d-none');
+  try{
+    const res = await fetch(`/dashboard_requirement_pipeline_table?req_id=${encodeURIComponent(req_id)}&status=${encodeURIComponent(status)}`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const html = await res.text();
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = html;
+  }catch{
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = "<div class='p-3 text-danger'>Failed to load.</div>";
+  }
+});
+
+
+
+// Global delegation so counts are always clickable (works anywhere on page)
+document.addEventListener('click', async (ev)=>{
+  const a = ev.target.closest('a.rp-link');
+  if(!a) return;
+  ev.preventDefault();
+  const req_id = a.getAttribute('data-req');
+  const status = a.getAttribute('data-status');
+  // Open/ensure modal present
+  const modalEl = document.getElementById('drillModal');
+  const modal = new bootstrap.Modal(modalEl);
+  document.getElementById('drillTitle').textContent = `Requirement • ${status}`;
+  document.getElementById('drillSpinner').classList.remove('d-none');
+  document.getElementById('drillContent').classList.add('d-none');
+  try{
+    const res = await fetch(`/dashboard_requirement_pipeline_table?req_id=${encodeURIComponent(req_id)}&status=${encodeURIComponent(status)}`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const html = await res.text();
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = html;
+  }catch{
+    document.getElementById('drillSpinner').classList.add('d-none');
+    const content = document.getElementById('drillContent');
+    content.classList.remove('d-none');
+    content.innerHTML = "<div class='p-3 text-danger'>Failed to load.</div>";
+  }
+  modal.show();
+});
+
+
+
+// ---------- Modal Back button (returns to the pipeline GRID) ----------
+(function(){
+  function ensureBackBtn(){
+    const titleEl = document.getElementById('drillTitle');
+    if (!titleEl) return null;
+    let back = document.getElementById('drillBackBtn');
+    if (!back) {
+      back = document.createElement('button');
+      back.id = 'drillBackBtn';
+      back.type = 'button';
+      back.className = 'btn btn-primary btn-sm me-2 d-none';
+      back.textContent = '← Back';
+      // Insert before the title text
+      const header = titleEl.parentElement;
+      header?.insertBefore(back, titleEl);
+    }
+    return back;
+  }
+
+  async function loadGridIntoModal(){
+    const back = ensureBackBtn();
+    if (back) back.classList.add('d-none'); // hide back when showing GRID
+    const modalEl = document.getElementById('drillModal');
+  const modal = new bootstrap.Modal(modalEl);
+    document.getElementById('drillTitle').textContent = 'Requirement Pipeline (Active)';
+    document.getElementById('drillSpinner').classList.remove('d-none');
+    document.getElementById('drillContent').classList.add('d-none');
+    try{
+      const res = await fetch('/dashboard_requirement_pipeline_grid', {headers:{'X-Requested-With':'XMLHttpRequest'}});
+      const html = await res.text();
+      document.getElementById('drillSpinner').classList.add('d-none');
+      const content = document.getElementById('drillContent');
+      content.classList.remove('d-none');
+      content.innerHTML = html;
+    }catch{
+      document.getElementById('drillSpinner').classList.add('d-none');
+      const content = document.getElementById('drillContent');
+      content.classList.remove('d-none');
+      content.innerHTML = "<div class='p-3 text-danger'>Failed to load.</div>";
+    }
+    modal.show();
+  }
+
+  // Hook up the header button (if present) to hide back and show grid
+  document.getElementById('openReqPipelineBtn')?.addEventListener('click', (e)=>{
+    e.preventDefault();
+    loadGridIntoModal();
+  });
+
+  // When the tile is clicked, we also want the grid (hide back)
+  document.addEventListener('click', (ev)=>{
+    const card = ev.target.closest('[data-widget-id="chart_req_pipeline"]');
+    if (!card) return;
+    loadGridIntoModal();
+  }, true);
+
+  // When a count inside the GRID is clicked, show the Back button
+  document.addEventListener('click', async (ev)=>{
+    const a = ev.target.closest('a.rp-link');
+    if(!a) return;
+    const back = ensureBackBtn();
+    if (back) back.classList.remove('d-none');
+    // The rest of the click handling for rp-link is defined elsewhere (global handler)
+  });
+
+  // Back button action -> load GRID again
+  document.addEventListener('click', (ev)=>{
+    const back = ev.target.closest('#drillBackBtn');
+    if (!back) return;
+    ev.preventDefault();
+    loadGridIntoModal();
+  });
+
+  // Optional: when modal is hidden, reset Back button for next time
+  document.getElementById('drillModal')?.addEventListener('hidden.bs.modal', ()=>{
+    const back = document.getElementById('drillBackBtn');
+    if (back) back.classList.add('d-none');
+  });
+})();
+
+</script>
+
+<!-- Fullscreen drilldown modal -->
+<div class="modal fade" id="drillModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="drillTitle">Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="drillSpinner" class="text-center py-5 d-none">Loading…</div>
+        <div id="drillContent"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// --- Requirement Pipeline client search: delegated handlers ---
+(function(){
+  function rpGo(){
+    var input = document.getElementById('rpClient');
+    var val = input ? input.value.trim() : '';
+    var base = '/dashboard_requirement_pipeline_grid';
+    var url = val ? (base + '?client=' + encodeURIComponent(val)) : base;
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r){ return r.text(); })
+      .then(function(html){
+        var host = document.getElementById('drillContent') || document.body;
+        host.innerHTML = html;
+      })
+      .catch(function(err){ console.error('Pipeline reload failed:', err); });
+  }
+  document.addEventListener('click', function(e){
+    var t = e.target;
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.target && e.target.id === 'rpClient' && e.key === 'Enter'){ e.preventDefault(); rpGo(); }
+  });
+})();
+</script>
+
+
+<script>
+// === Additive patch: Client dropdown + Search for Requirement Pipeline ===
+// Non-destructive: doesn't remove existing handlers; just augments the modal with a filter.
+(function(){
+  if (window.__rpClientAugment) return;  // avoid duplicates
+  window.__rpClientAugment = true;
+
+  let currentClientFilter = '';
+
+  function reloadPipelineGrid(client){
+    const base = '/dashboard_requirement_pipeline_grid';
+    const url = client ? `${base}?client=${encodeURIComponent(client)}` : base;
+    return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.text())
+      .then(html => {
+        const host = document.getElementById('drillContent');
+        if (host){
+          host.innerHTML = html;
+          ensureClientFilter(); // reattach filter after content swap
+        }
+      })
+      .catch(err => console.error('Failed to reload pipeline grid:', err));
+  }
+
+  function ensureClientFilter(){
+    const host = document.getElementById('drillContent');
+    if (!host) return;
+
+    // already added?
+    let filter = host.querySelector('.client-filter');
+    if (!filter){
+      filter = document.createElement('div');
+      filter.className = 'client-filter';
+      filter.innerHTML = `
+        <label for="rpClientSelect">Filter by Client:</label>
+        <select id="rpClientSelect" class="form-select form-select-sm" style="max-width:240px">
+          <option value="">All Clients</option>
+          <option value="Bounteous*Accolite">Bounteous*Accolite</option>
+          <option value="Provar Solution">Provar Solution</option>
+          <option value="Accolite Digital">Accolite Digital</option>
+          <option value="MagillHub">MagillHub</option>
+          <option value="Apexon">Apexon</option>
+        </select>
+        <button id="rpClientSearch" class="btn btn-primary btn-sm">Search</button>
+      `;
+      // Insert at top
+      if (host.firstChild) host.insertBefore(filter, host.firstChild);
+      else host.appendChild(filter);
+    }
+
+    // restore state
+    const sel = filter.querySelector('#rpClientSelect');
+    if (sel) sel.value = currentClientFilter;
+
+    // (re)bind search click
+    const btn = filter.querySelector('#rpClientSearch');
+    if (btn && !btn.__bound){
+      btn.__bound = true;
+      btn.addEventListener('click', function(){
+        const selected = sel ? sel.value : '';
+        currentClientFilter = selected;
+        reloadPipelineGrid(selected);
+      });
+    }
+  }
+
+  // When the modal shows (header button or tile click), attach filter once content arrives
+  document.getElementById('drillModal')?.addEventListener('shown.bs.modal', ()=> ensureClientFilter());
+
+  // Also watch drillContent for replacements from existing code
+  const drill = document.getElementById('drillContent');
+  if (drill){
+    new MutationObserver(()=>{
+      // If grid is loaded, ensure filter exists at the top
+      ensureClientFilter();
+    }).observe(drill, {childList:true, subtree:true});
+  }
+
+  // If the page already loaded the grid, try now too
+  if (document.readyState === 'complete') ensureClientFilter();
+  else window.addEventListener('load', ensureClientFilter);
+})();
+</script>
+
+
+
+<script>
+(function(){
+  function ensureBackBtn(){
+    const titleEl = document.getElementById('drillTitle');
+    if (!titleEl) return null;
+    let back = document.getElementById('drillBackBtn');
+    if (!back) {
+      back = document.createElement('button');
+      back.id = 'drillBackBtn';
+      back.type = 'button';
+      back.className = 'btn btn-primary btn-sm me-2 d-none';
+      back.textContent = '← Back';
+      titleEl.parentElement?.insertBefore(back, titleEl);
+    }
+    return back;
+  }
+
+  async function openRecruiterGrid(){
+    const back = ensureBackBtn(); if (back) back.classList.add('d-none');
+    const modalEl = document.getElementById('drillModal');
+  const modal = new bootstrap.Modal(modalEl);
+    document.getElementById('drillTitle').textContent = 'Recruiter Pipeline';
+    document.getElementById('drillSpinner').classList.remove('d-none');
+    document.getElementById('drillContent').classList.add('d-none');
+    try {
+      const res = await fetch('/dashboard_recruiter_pipeline_grid', {headers:{'X-Requested-With':'XMLHttpRequest'}});
+      const html = await res.text();
+      document.getElementById('drillSpinner').classList.add('d-none');
+      const content = document.getElementById('drillContent');
+      content.classList.remove('d-none');
+      content.innerHTML = html;
+    } catch {
+      document.getElementById('drillSpinner').classList.add('d-none');
+      const content = document.getElementById('drillContent');
+      content.classList.remove('d-none');
+      content.innerHTML = "<div class='p-3 text-danger'>Failed to load.</div>";
+    }
+    modal.show();
+  }
+
+  // Wire up the header button
+  document.getElementById('openRecruiterPipelineBtn')?.addEventListener('click', (e)=>{
+    e.preventDefault();
+    openRecruiterGrid();
+  });
+
+  // In-grid count click -> candidate table
+  document.addEventListener('click', async (ev)=>{
+    const a = ev.target.closest('a.rp2-link');
+    if(!a) return;
+    ev.preventDefault();
+    const recruiter = a.getAttribute('data-recruiter') || 'Recruiter';
+    const status = a.getAttribute('data-status') || 'Status';
+    const back = ensureBackBtn(); if (back) back.classList.remove('d-none');
+
+    document.getElementById('drillTitle').textContent = `${recruiter} — ${status}`;
+    document.getElementById('drillSpinner').classList.remove('d-none');
+    document.getElementById('drillContent').classList.add('d-none');
+    try{
+      const url = `/dashboard_recruiter_pipeline_table?recruiter=${encodeURIComponent(recruiter)}&status=${encodeURIComponent(status)}`;
+      const res = await fetch(url, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+      const html = await res.text();
+      document.getElementById('drillSpinner').classList.add('d-none');
+      const content = document.getElementById('drillContent');
+      content.classList.remove('d-none');
+      content.innerHTML = html;
+    }catch{
+      document.getElementById('drillSpinner').classList.add('d-none');
+      const content = document.getElementById('drillContent');
+      content.classList.remove('d-none');
+      content.innerHTML = "<div class='p-3 text-danger'>Failed to load.</div>";
+    }
+  });
+
+  // Back button returns to recruiter grid
+  document.addEventListener('click', (ev)=>{
+    const back = ev.target.closest('#drillBackBtn');
+    if (!back) return;
+    ev.preventDefault();
+    openRecruiterGrid();
+  });
+
+  // Reset Back on modal hide
+  document.getElementById('drillModal')?.addEventListener('hidden.bs.modal', ()=>{
+    const back = document.getElementById('drillBackBtn');
+    if (back) back.classList.add('d-none');
+  });
+})();
+</script>
+
+
+<script>
+// Greeting + rotating recruiter message for Dashboard
+document.addEventListener('DOMContentLoaded', function(){
+  try{
+    var banner = document.getElementById('welcomeBanner');
+    if(!banner) return;
+    var firstName = banner.getAttribute('data-first-name') || 'Recruiter';
+
+    var hour = new Date().getHours();
+    var greeting = (hour < 12) ? 'Good morning' : (hour < 17) ? 'Good afternoon' : 'Good evening';
+    var icon = (hour < 12) ? 'bi-sunrise-fill' : (hour < 17) ? 'bi-brightness-high-fill' : 'bi-moon-stars-fill';
+    var iconEl = document.getElementById('wbIcon');
+    if(iconEl){ iconEl.classList.add(icon); }
+
+    var messages = [
+      "Let’s match great talent with the right role today.",
+      "Great outreach = great pipelines. You’ve got this.",
+      "Every conversation is a door to an offer.",
+      "Quality submissions beat quantity—aim sharp.",
+      "Turn ‘maybe’ candidates into ‘when can we talk?’",
+      "Small follow-ups, big placements.",
+      "Keep the pipeline warm and the offers hot.",
+      "Profiles ready, hiring managers happy.",
+      "Your next placement is one call away.",
+      "Make candidate experience your superpower today."
+    ];
+    var LAST_KEY = 'welcome_last_index';
+    var last = Number(localStorage.getItem(LAST_KEY));
+    var idx = Math.floor(Math.random() * messages.length);
+    if(!Number.isNaN(last) && messages.length > 1 && idx === last){ idx = (idx + 1) % messages.length; }
+    localStorage.setItem(LAST_KEY, String(idx));
+
+    document.getElementById('wbTitle').textContent = greeting + ', ' + firstName + '!';
+    document.getElementById('wbSub').textContent = ' ' + messages[idx];
+    banner.style.display = 'flex';
+
+    document.getElementById('wbClose')?.addEventListener('click', function(){ banner.style.display = 'none'; });
+  }catch(e){ console && console.debug && console.debug('welcome banner failed', e); }
+});
+</script>
+
+{% endblock %}
+
+
+</div>
+
+<script>
+
+// Chart defaults to enforce bar sizing and readable axes across all charts
+if (window.Chart && Chart.defaults) {
+  // Respect CSS heights
+  Chart.defaults.maintainAspectRatio = false;
+  // Make legends off by default (we use titles/labels)
+  if (Chart.defaults.plugins && Chart.defaults.plugins.legend) {
+    Chart.defaults.plugins.legend.display = false;
+  }
+  // Thinner bars globally
+  if (!Chart.defaults.datasets) Chart.defaults.datasets = {};
+  if (!Chart.defaults.datasets.bar) Chart.defaults.datasets.bar = {};
+  Chart.defaults.datasets.bar.maxBarThickness = 24;
+  Chart.defaults.datasets.bar.barPercentage = 0.55;
+  Chart.defaults.datasets.bar.categoryPercentage = 0.55;
+  // Y axis sane defaults
+  Chart.defaults.scales = Chart.defaults.scales || {};
+  Chart.defaults.scales.y = Chart.defaults.scales.y || {};
+  Chart.defaults.scales.y.beginAtZero = true;
+  Chart.defaults.scales.y.ticks = Chart.defaults.scales.y.ticks || {};
+  Chart.defaults.scales.y.ticks.precision = 0;
+}
+
+// Open builder
+(function(){
+  const btn = document.getElementById('openBuilderBtn');
+  if (btn) {
+    btn.addEventListener('click', ()=>{
+      new bootstrap.Modal(document.getElementById('builderModal')).show();
+    });
+  }
+})();
+
+let builderChart = null;
+
+
+async function runBuilderPreview(pin=false){
+  const ds = document.getElementById('b_dataset').value;
+  const gb = document.getElementById('b_group').value;
+  const df = document.getElementById('b_from').value || null;
+  const dt = document.getElementById('b_to').value || null;
+  const fv = document.getElementById('b_filter_value').value || null;
+
+  const filters = {};
+  if (fv) {
+    if (ds==='candidates' && ['profile_status','calling_status','added_by','client_name'].includes(gb)) filters[gb]=fv;
+    if (ds==='requirements' && ['status','assigned_to','client_name'].includes(gb)) filters[gb]=fv;
+  }
+
+  const res = await fetch('/dashboard_query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ dataset: ds, group_by: gb, date_from: df, date_to: dt, filters })
+  });
+  const data = await res.json();
+  const el = document.getElementById('b_preview');
+  if (!res.ok) { el.textContent = data.error || 'Error'; return; }
+
+  const labels = data.rows.map(r=>r.label);
+  const values = data.rows.map(r=>+r.cnt||0);
+  el.innerHTML = '<canvas id="b_canvas" style="height:220px"></canvas>';
+  if (builderChart) builderChart.destroy();
+  builderChart = new Chart(document.getElementById('b_canvas'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: (typeof colorsFor==='function'? colorsFor(labels.length): undefined), maxBarThickness: 24, barPercentage: .55, categoryPercentage:.55 }] },
+    options: { maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, ticks:{precision:0}}} }
+  });
+
+  if (pin && isAdmin) {
+    const wid = `custom_${ds}_${gb}`.replace(/[^a-z0-9_]/gi,'').toLowerCase();
+    if (!document.querySelector(`.widget[data-widget-id="${wid}"]`)) {
+      const card = document.createElement('div');
+      card.className = 'widget';
+      card.dataset.widgetId = wid;
+      card.innerHTML = `
+        <div class="widget-actions">
+          <span class="handle bi bi-grip-horizontal"></span>
+          <button class="btn btn-sm btn-outline-danger remove-widget"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <h6>Custom: ${ds} by ${gb}</h6>
+        <canvas id="${wid}_canvas"></canvas>
+      `;
+      const grid = document.getElementById('grid') || document.body;
+      grid.appendChild(card);
+      card.querySelector('.remove-widget')?.addEventListener('click', ()=> card.classList.add('d-none'));
+    }
+    const ctx = document.getElementById(`${wid}_canvas`)?.getContext('2d');
+    if (ctx) {
+      new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ data: values, backgroundColor: (typeof colorsFor==='function'? colorsFor(labels.length): undefined), maxBarThickness:24, barPercentage:.55, categoryPercentage:.55 }] },
+        options: { maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, ticks:{precision:0}}} }
+      });
+    }
+    if (typeof getCurrentIds === 'function' && typeof saveLayout === 'function') {
+      const ids = getCurrentIds();
+      if (!ids.includes(wid)) ids.push(wid);
+      await saveLayout(ids);
+    }
+    bootstrap.Modal.getInstance(document.getElementById('builderModal'))?.hide();
+  }
+}
+
+(function(){
+  const prev = document.getElementById('b_preview_btn');
+  if (prev) prev.addEventListener('click', ()=> runBuilderPreview(false));
+  const pin = document.getElementById('b_pin_btn');
+  if (pin) pin.addEventListener('click', ()=> runBuilderPreview(true));
+})();
+
+
+  <!-- other scripts -->
+
+  <script>
+  // --- Requirement Pipeline client search: delegated handlers ---
+  (function(){
+    function reloadPipeline(){
+      var input=document.getElementById('rpClient');
+      var val=input?input.value.trim():'';
+      var base='/dashboard_requirement_pipeline_grid';
+      var url=val? base+'?client='+encodeURIComponent(val): base;
+      fetch(url,{headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(r=>r.text())
+        .then(html=>{
+          var host=document.getElementById('drillContent')||document.body;
+          host.innerHTML=html;
+        })
+        .catch(err=>console.error('Pipeline reload failed:',err));
+    }
+    document.addEventListener('click',e=>{
+        var i=document.getElementById('rpClient'); if(i) i.value='';
+        reloadPipeline();
+      }
+    });
+    document.addEventListener('keydown',e=>{
+      if(e.target && e.target.id==='rpClient' && e.key==='Enter'){
+        e.preventDefault();
+        reloadPipeline();
+      }
+    });
+  })();
+  </script>
+
+
+</script>
+<script>
+
+
+
+
+<script>
+(function(){
+  if (window.__rpClientInstalled) return;
+  window.__rpClientInstalled = true;
+
+  function reloadGridWithClient(value){
+    const base = '/dashboard_requirement_pipeline_grid';
+    const url = value ? (base + '?client=' + encodeURIComponent(value)) : base;
+    return fetch(url, {headers:{'X-Requested-With':'XMLHttpRequest'}})
+      .then(r=>r.text())
+      .then(html=>{
+        const host = document.getElementById('drillContent') || document.body;
+        host.innerHTML = html;
+        ensureSearchButton();
+      });
+  }
+
+  function ensureSearchButton(){
+    const sel = document.getElementById('rpClientSel');
+    if(!sel) return;
+    if(document.getElementById('rpClientSearch')) return;
+    const btn = document.createElement('button');
+    btn.id = 'rpClientSearch';
+    btn.type = 'button';
+    btn.className = 'btn btn-primary ms-2';
+    btn.textContent = 'Search';
+    sel.insertAdjacentElement('afterend', btn);
+  }
+
+  document.addEventListener('change', function(ev){
+    const t = ev.target;
+    if (t && t.id === 'rpClientSel'){
+      reloadGridWithClient(t.value || '');
+    }
+  }, true);
+
+  document.addEventListener('click', function(ev){
+    const t = ev.target;
+    if (t && t.id === 'rpClientSearch'){
+      const sel = document.getElementById('rpClientSel');
+      reloadGridWithClient((sel && sel.value) || '');
+    }
+  }, true);
+
+  const drill = document.getElementById('drillContent');
+  if (drill){
+    new MutationObserver(()=> ensureSearchButton()).observe(drill, {childList:true, subtree:true});
+  }
+
+  const modal = document.getElementById('drillModal');
+  if (modal){
+    modal.addEventListener('shown.bs.modal', ensureSearchButton);
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ensureSearchButton);
+  } else {
+    ensureSearchButton();
+  }
+})();
+</script>
+
+</script>
+<script>
+// Robust cleanup for drillModal overlays and body state
+(function(){
+  const el = document.getElementById('drillModal');
+  if (!el) return;
+  function cleanup(){
+    // Remove any lingering Bootstrap backdrops
+    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+    // Reset body scroll lock
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('padding-right');
+  }
+  el.addEventListener('hide.bs.modal', cleanup);
+  el.addEventListener('hidden.bs.modal', cleanup);
+})();
+</script>
+
+
+
+
+
+<script>
+(function(){
+  if (window.__drillCleanupBound) return; window.__drillCleanupBound = true;
+  const el = document.getElementById('drillModal');
+  if (!el) return;
+  function cleanup(){
+    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('padding-right');
+  }
+  el.addEventListener('hidden.bs.modal', cleanup);
+  el.addEventListener('hide.bs.modal', cleanup);
+})();
+</script>

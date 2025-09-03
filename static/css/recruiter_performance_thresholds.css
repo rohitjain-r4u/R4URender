@@ -1,0 +1,5 @@
+
+/* Threshold coloring for bubbles (overrides accent when applied) */
+.sat .bubble.status-green { background: #dcfce7 !important; color: #065f46; }  /* light green */
+.sat .bubble.status-yellow{ background: #fef9c3 !important; color: #92400e; }  /* light yellow */
+.sat .bubble.status-red   { background: #fee2e2 !important; color: #991b1b; }  /* light red */

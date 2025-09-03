@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold">Add New Requirement</h2>
+    <a href="{{ url_for('requirements') }}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Requirements
+    </a>
+  </div>
+
+  <div class="card border-0 shadow">
+    <div class="card-body">
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label">Client Name</label>
+              <input type="text" name="client_name" class="form-control" required>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Client LinkedIn Profile</label>
+              <input type="url" name="client_linkedin_profile" class="form-control" placeholder="https://www.linkedin.com/company/...">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Client Brief Description</label>
+              <textarea name="client_brief_description" class="form-control" rows="3" placeholder="One-line about client, domain, size, etc."></textarea>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Requirement Name</label>
+              <input type="text" name="requirement_name" class="form-control" required>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Experience</label>
+              <input type="text" name="experience" class="form-control" placeholder="e.g. 5-8 years">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Mandatory Skills</label>
+              <textarea name="mandatory_skills" class="form-control" rows="3"></textarea>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label">Job Locations</label>
+              <input type="text" name="job_locations" class="form-control" placeholder="e.g. Bangalore, Hyderabad">
+            </div>
+
+            <div class="mb-3 form-check form-switch">
+              <input type="checkbox" name="remote" class="form-check-input" id="remoteSwitch">
+              <label class="form-check-label" for="remoteSwitch">Remote Position</label>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Budget</label>
+              <input type="text" name="budget" class="form-control" placeholder="e.g. ₹25–35 LPA">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Job Details (Internal)</label>
+              <input type="text" name="job_d_th_d" class="form-control" placeholder="Internal notes / IDs">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-select" required>
+                <option value="Active" selected>Active</option>
+                <option value="Hold">Hold</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </div>
+
+            <!-- Multi-assign checklist -->
+            <div class="mb-3">
+              <label class="form-label">Assign To (multiple)</label>
+              <div class="border rounded p-2" style="max-height:220px; overflow:auto;">
+                {% for uname in recruiters %}
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="assigned_to" value="{{ uname }}" id="chk_{{ loop.index }}">
+                    <label class="form-check-label" for="chk_{{ loop.index }}">{{ uname }}</label>
+                  </div>
+                {% endfor %}
+                {% if recruiters|length == 0 %}
+                  <div class="text-muted small">No recruiters/admins found.</div>
+                {% endif %}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label">Job Description</label>
+          <textarea name="job_description" class="form-control" rows="5"></textarea>
+        </div>
+
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+          <button type="submit" class="btn btn-primary px-4">
+            <i class="bi bi-save me-2"></i>Save Requirement
+          </button>
+          <a href="{{ url_for('requirements') }}" class="btn btn-outline-secondary px-4">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

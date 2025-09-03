@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-people"></i> User Management</h3>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addUserModal">
+            <i class="bi bi-person-plus"></i> Add User
+        </button>
+    </div>
+
+    <!-- Search -->
+    <form class="input-group mb-3" method="get">
+        <input type="text" class="form-control" name="search" placeholder="Search users..." value="{{ search }}">
+        <button class="btn btn-primary" type="submit">Search</button>
+    </form>
+
+    <!-- Table -->
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>ID</th>
+                <th>First</th>
+                <th>Last</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for u in users %}
+            <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.first_name }}</td>
+                <td>{{ u.last_name }}</td>
+                <td>{{ u.email }}</td>
+                <td>
+                    {% if u.role == 'admin' %}
+                        <span class="badge bg-primary">Admin</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ u.role|capitalize }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.status == 'Active' %}
+                        <span class="badge bg-success">Active</span>
+                    {% else %}
+                        <span class="badge bg-danger">{{ u.status }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <!-- Edit -->
+                    <button class="btn btn-outline-warning btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#editUserModal"
+                            data-user-id="{{ u.id }}"
+                            data-first-name="{{ u.first_name }}"
+                            data-last-name="{{ u.last_name }}"
+                            data-email="{{ u.email }}"
+                            data-role="{{ u.role }}"
+                            data-status="{{ u.status }}">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <!-- Reset Password -->
+                    <button class="btn btn-outline-primary btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#resetPasswordModal"
+                            data-user-id="{{ u.id }}">
+                        <i class="bi bi-key"></i>
+                    </button>
+                    <!-- Delete -->
+                    <button class="btn btn-outline-danger btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deleteUserModal"
+                            data-user-id="{{ u.id }}"
+                            data-user-name="{{ u.first_name }} {{ u.last_name }}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form action="{{ url_for('add_user') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Add User</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" name="first_name" class="form-control mb-2" placeholder="First Name" required>
+          <input type="text" name="last_name" class="form-control mb-2" placeholder="Last Name">
+          <input type="email" name="email" class="form-control mb-2" placeholder="Email" required>
+          <select name="role" class="form-select mb-2">
+            <option value="admin">Admin</option>
+            <option value="recruiter">Recruiter</option>
+          </select>
+          <select name="status" class="form-select mb-2">
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+          <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="editUserForm" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit User</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" name="first_name" id="edit_first_name" class="form-control mb-2" required>
+          <input type="text" name="last_name" id="edit_last_name" class="form-control mb-2">
+          <input type="email" name="email" id="edit_email" class="form-control mb-2" required>
+          <select name="role" id="edit_role" class="form-select mb-2">
+            <option value="admin">Admin</option>
+            <option value="recruiter">Recruiter</option>
+          </select>
+          <select name="status" id="edit_status" class="form-select mb-2">
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Update</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="resetPasswordForm" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Reset Password</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="password" name="password" class="form-control mb-2" placeholder="New Password" required>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Reset</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete User Modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="deleteUserForm" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Delete User</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          Are you sure you want to delete <strong id="deleteUserName"></strong>?
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- JS to set modal form actions -->
+<script>
+document.getElementById('editUserModal').addEventListener('show.bs.modal', function (event) {
+  var button = event.relatedTarget
+  var id = button.getAttribute('data-user-id')
+  document.getElementById('editUserForm').action = '/edit_user/' + id
+  document.getElementById('edit_first_name').value = button.getAttribute('data-first-name')
+  document.getElementById('edit_last_name').value = button.getAttribute('data-last-name')
+  document.getElementById('edit_email').value = button.getAttribute('data-email')
+  document.getElementById('edit_role').value = button.getAttribute('data-role')
+  document.getElementById('edit_status').value = button.getAttribute('data-status')
+})
+
+document.getElementById('resetPasswordModal').addEventListener('show.bs.modal', function (event) {
+  var button = event.relatedTarget
+  var id = button.getAttribute('data-user-id')
+  document.getElementById('resetPasswordForm').action = '/reset_user_password/' + id
+})
+
+document.getElementById('deleteUserModal').addEventListener('show.bs.modal', function (event) {
+  var button = event.relatedTarget
+  var id = button.getAttribute('data-user-id')
+  var name = button.getAttribute('data-user-name')
+  document.getElementById('deleteUserForm').action = '/delete_user/' + id
+  document.getElementById('deleteUserName').textContent = name
+})
+</script>
+{% endblock %}

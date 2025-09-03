@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+  <h3 class="mb-4">Candidate Review</h3>
+
+  <!-- Summary -->
+  <div class="alert alert-info">
+    <strong>Total Rows:</strong> {{ rows|length }} |
+    <strong>Total Columns:</strong> {{ columns|length }}
+  </div>
+
+  <!-- Review Table -->
+  <div class="table-responsive" style="max-height:70vh; overflow-y:auto; overflow-x:auto;">
+    <table class="table table-bordered table-sm align-middle review-table">
+      <thead class="table-light">
+        <tr>
+          {% for col in columns %}
+            <th>{{ col }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr class="{{ 'table-success' if row.valid else 'table-danger' }}">
+          {% for col in columns %}
+            {% set val = row.data[col] %}
+            <td contenteditable="true" data-col="{{ col }}">
+              {{ '' if val is none or val|string == 'nan' else val }}
+            </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Actions -->
+  
+
+    <form id="finalizeForm"
+          method="post"
+          action="/candidates/import/commit"
+          onsubmit="submitFinalize(event)">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="upload_id" value="{{ upload_id }}">
+      <textarea name="edited_data" id="edited_data" hidden></textarea>
+      <input type="hidden" name="mapping" id="mapping" />
+      <input type="hidden" name="requirement_id" value="{{ req_id or session.get('requirement_id') or '' }}">
+      <button type="submit" class="btn btn-success">
+        Finalize Import
+      </button>
+    </form>
+  </div>
+</div>
+
+<style>
+  .review-table th {
+    position: sticky;
+    top: 0;
+    background-color: #f8f9fa !important;
+    z-index: 2;
+  }
+  .review-table th,
+  .review-table td {
+    border: 1px solid #000 !important;
+    height: 35px !important;
+    min-width: 120px !important;
+    max-width: 160px !important;
+    padding: 4px 6px !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+</style>
+
+<script>
+// 1) Load mapping that was saved on the mapping screen
+//    (it's an array of {uploaded, matched, status} objects)
+window.mapping = JSON.parse(localStorage.getItem('candidateMapping') || '[]');
+
+// 2) Collect table edits into an array of row objects
+function collectEdits() {
+  const rows = [];
+  document.querySelectorAll("tbody tr").forEach((tr) => {
+    const rowData = {};
+    tr.querySelectorAll("td[data-col]").forEach(td => {
+      const col = td.getAttribute("data-col");
+      rowData[col] = td.innerText.trim();
+    });
+    rows.push(rowData);
+  });
+  document.getElementById("edited_data").value = JSON.stringify(rows);
+
+  // Attach mapping (array is fine; backend converts to dict)
+  document.getElementById("mapping").value = JSON.stringify(window.mapping);
+
+  // Ensure requirement_id is populated:
+  const urlParams = new URLSearchParams(window.location.search);
+  const fromUrl = urlParams.get('req_id') || urlParams.get('requirement_id');
+  const hidden = (document.querySelector('input[name=\"requirement_id\"]') || {}).value || '';
+  const finalReq = (fromUrl && fromUrl !== 'None') ? fromUrl : (hidden && hidden !== 'None' ? hidden : (localStorage.getItem('requirement_id') || ''));
+  const reqInput = document.querySelector('input[name=\"requirement_id\"]');
+  if (reqInput) reqInput.value = finalReq;
+  if (finalReq) localStorage.setItem('requirement_id', finalReq);
+}
+
+// 3) Submit via fetch as FormData (matches backend expecting request.form)
+async function submitFinalize(event) {
+  event.preventDefault();
+  collectEdits();
+
+  const form = document.getElementById("finalizeForm");
+  const formData = new FormData(form);
+
+  try {
+    const resp = await fetch(form.action, { method: "POST", body: formData });
+    const result = await resp.json();
+
+    if (resp.ok && result.status === "ok") {
+      alert("✅ Candidates imported successfully (" + result.rows_inserted + " rows).");
+
+      // Redirect using requirement_id actually submitted
+      const reqId = (form.querySelector('input[name=\"requirement_id\"]') || {}).value || '';
+      if (reqId) {
+        window.location.href = `/requirement/${reqId}/candidates`;
+      } else {
+        window.location.href = `/`;
+      }
+    } else {
+      alert("❌ Import failed: " + (result.message || "Unknown error"));
+    }
+  } catch (err) {
+    alert("❌ Import failed due to server error.");
+  }
+}
+</script>
+
+{% endblock %}

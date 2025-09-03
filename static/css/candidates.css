@@ -1,0 +1,28 @@
+/* Table Styling */
+.table {
+  font-size: 14px;
+  border: 1px solid #ddd;
+}
+
+.table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+/* Buttons */
+.btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.btn-info {
+  background-color: #0dcaf0;
+  border-color: #0dcaf0;
+  color: #fff;
+}
+
+/* Modal */
+.modal-content {
+  border-radius: 10px;
+  padding: 10px;
+}

@@ -1,0 +1,129 @@
+{# candidate_detail_partial.html - used inside modal. Matches the styling you provided #}
+<style>
+  .section-title { font-weight:700; margin: .25rem 0 .35rem; }
+  .field-label { font-weight:600; margin-right:.4rem; }
+  .field-value { margin-left:.1rem; }
+  .spacer { margin-top:.35rem; } /* space between header/title and content lines */
+  .muted-small { color:#6b7280; font-size:0.875rem; }
+</style>
+
+<div class="card">
+  <div class="card-header d-flex align-items-start justify-content-between">
+    <div>
+      <div class="h6 mb-0" style="font-weight:700;color:#111827;line-height:1.05;">
+        Candidate Details – {{ candidate.candidate_name }} + {{ candidate.job_title }}
+      </div>
+      <div class="muted-small">CD-{{ candidate.id }}</div>
+    </div>
+
+    <div class="header-actions d-flex gap-2">
+      <a href="{{ url_for('edit_candidate', cand_id=candidate.id) }}" class="btn btn-primary btn-sm btn-pill">
+        <i class="bi bi-pencil me-1"></i>Edit
+      </a>
+    </div>
+  </div>
+
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-6 detail-left">
+        <div class="mb-2">
+          <div class="section-title">Basic Info</div>
+          <div class="spacer"></div>
+          <p><span class="field-label">Candidate Name</span><span class="field-value">{{ candidate.candidate_name }}</span></p>
+          <p><span class="field-label">Job Title</span><span class="field-value">{{ candidate.job_title or '' }}</span></p>
+          <p><span class="field-label">Application Date</span><span class="field-value">{% if candidate.application_date %}{{ candidate.application_date }}{% endif %}</span></p>
+          <p><span class="field-label">Total Experience</span><span class="field-value">{{ candidate.total_experience or '' }}</span></p>
+        </div>
+
+        <div class="mb-2">
+          <div class="section-title">Contacts</div>
+          <div class="spacer"></div>
+          {% if candidate.phones %}
+            <p><span class="field-label">Phone(s)</span>
+              <span class="field-value">
+                {% for p in candidate.phones %}
+                  <div>{{ p }}</div>
+                {% endfor %}
+              </span>
+            </p>
+          {% endif %}
+          {% if candidate.emails %}
+            <p><span class="field-label">Email(s)</span>
+              <span class="field-value">
+                {% for e in candidate.emails %}
+                  <div>{{ e }}</div>
+                {% endfor %}
+              </span>
+            </p>
+          {% endif %}
+        </div>
+
+        <div class="mb-2">
+          <div class="section-title">Location & Notice</div>
+          <div class="spacer"></div>
+          <p><span class="field-label">Current Location</span><span class="field-value">{{ candidate.current_location or '' }}</span></p>
+          <p><span class="field-label">Preferred Locations</span><span class="field-value">{{ candidate.preferred_locations or '' }}</span></p>
+          <p><span class="field-label">Notice Period</span><span class="field-value">{{ candidate.notice_period or '' }}</span></p>
+          <p><span class="field-label">Notice Details</span><span class="field-value">{{ candidate.notice_period_details or '' }}</span></p>
+        </div>
+      </div>
+
+      <div class="col-md-6 detail-right">
+        <div class="mb-2">
+          <div class="section-title">Compensation</div>
+          <div class="spacer"></div>
+          <p><span class="field-label">CTC (Current)</span><span class="field-value">{{ candidate.ctc_current or '' }}</span></p>
+          <p><span class="field-label">Expected CTC</span><span class="field-value">{{ candidate.ectc or '' }}</span></p>
+          <p><span class="field-label">Current CTC (LPA)</span><span class="field-value">{{ candidate.current_ctc_lpa or '' }}</span></p>
+          <p><span class="field-label">Expected CTC (LPA)</span><span class="field-value">{{ candidate.expected_ctc_lpa or '' }}</span></p>
+        </div>
+
+        <div class="mb-2">
+          <div class="section-title">Profile</div>
+          <div class="spacer"></div>
+          <p><span class="field-label">Current Company</span><span class="field-value">{{ candidate.current_company or '' }}</span></p>
+          <p><span class="field-label">Key Skills</span><span class="field-value">{{ candidate.key_skills or '' }}</span></p>
+          <p><span class="field-label">Education</span><span class="field-value">{{ candidate.education or '' }}</span></p>
+          <p><span class="field-label">Post Graduation</span><span class="field-value">{{ candidate.post_graduation or '' }}</span></p>
+        </div>
+
+        <div class="mb-2">
+          <div class="section-title">Status & Misc</div>
+          <div class="spacer"></div>
+          <p><span class="field-label">Calling Status</span><span class="field-value">{{ candidate.calling_status or '' }}</span></p>
+          <p><span class="field-label">Profile Status</span>
+            <span class="field-value">
+              <span class="badge {% if candidate.profile_status == 'Active' %}bg-success{% elif candidate.profile_status == 'Hold' %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="font-size:.75rem;">
+                {{ candidate.profile_status or '' }}
+              </span>
+            </span>
+          </p>
+          <p><span class="field-label">Companies Worked</span><span class="field-value">{{ candidate.companies_worked or '' }}</span></p>
+          <p><span class="field-label">Employee Size</span><span class="field-value">{{ candidate.employee_size or '' }}</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-3">
+      <div class="col-12">
+        <div class="section-title">Comments</div>
+        <div class="spacer"></div>
+        <p class="field-value">{{ candidate.comments or '' }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-footer d-flex justify-content-between">
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('edit_candidate', cand_id=candidate.id) }}" class="btn btn-primary btn-sm btn-pill">
+        <i class="bi bi-pencil me-1"></i>Edit
+      </a>
+    </div>
+    <form method="POST" action="{{ url_for('delete_candidate', cand_id=candidate.id) }}" onsubmit="return confirm('Delete this candidate?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <button type="submit" class="btn btn-danger btn-sm btn-pill">
+        <i class="bi bi-trash me-1"></i>Delete
+      </button>
+    </form>
+  </div>
+</div>

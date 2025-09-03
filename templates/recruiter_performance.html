@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block head %}
+{{ super() }}
+<style>
+  :root{
+    --rf-bg:#f6f8fb;
+    --rf-card:#ffffff;
+    --rf-ink:#0f172a;
+    --rf-muted:#64748b;
+    --rf-shadow:0 12px 32px rgba(2,6,23,.08);
+    --rf-radius:18px;
+    /* pastel tiles */
+    --rf-blue:#dbeafe;   /* Today */
+    --rf-green:#dcfce7;  /* 7-Day Avg */
+    --rf-yellow:#fef3c7; /* Yesterday */
+    --rf-lav:#ede9fe;    /* 30-Day Avg */
+  }
+  /* page container lives inside base.html .container */
+  .rf-wrapper{max-width:1280px;margin:0 auto}
+  .rf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:20px}
+  .rf-card{background:var(--rf-card);border-radius:var(--rf-radius);box-shadow:var(--rf-shadow);padding:18px 22px}
+  .rf-title{display:flex;align-items:center;gap:10px;margin-bottom:14px;color:var(--rf-ink);font-weight:800}
+  .rf-title .icon{width:22px;height:22px;display:inline-grid;place-items:center;border-radius:6px;background:#eff6ff;color:#1e40af}
+  .rf-row{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .rf-name{min-width:140px;font-size:1.2rem;font-weight:700}
+  .rf-tiles{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:16px;flex:1}
+  .rf-tile{border-radius:14px;padding:16px 18px;background:#f1f5f9;box-shadow:0 6px 16px rgba(15,23,42,.06)}
+  .rf-tile h3{margin:0 0 6px 0;font-size:.95rem;color:#475569;font-weight:700}
+  .rf-tile .value{font-size:1.6rem;font-weight:900}
+  .rf-blue{background:var(--rf-blue)}
+  .rf-green{background:var(--rf-green)}
+  .rf-yellow{background:var(--rf-yellow)}
+  .rf-lav{background:var(--rf-lav)}
+  @media (max-width:700px){
+    .rf-name{min-width:auto;width:100%}
+    .rf-tiles{grid-template-columns:repeat(2,1fr)}
+  }
+  .rf-error{color:#b91c1c;background:#fee2e2;padding:12px;border-radius:12px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rf-wrapper">
+  <div id="rf-cards" class="rf-grid" aria-live="polite"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  // Toggle to verify UI instantly without backend
+  const RF_USE_MOCK = false;
+
+  function rfFmt(val){
+    if(val === null || val === undefined || val === '') return '0';
+    return (typeof val === 'number' ? (Number.isInteger(val) ? val : val.toFixed(1)) : val);
+  }
+  function rfTile(label, value, cls){
+    const v = rfFmt(value);
+    const aria = label + ': ' + v;
+    return `<div class="rf-tile ${cls}" role="group" aria-label="${aria}">
+              <h3>${label}</h3>
+              <div class="value">${v}</div>
+            </div>`;
+  }
+  function rfCard(r){
+    return `<section class="rf-card">
+      <div class="rf-title"><span class="icon"><i class="bi bi-person-badge" aria-hidden="true"></i></span>
+        Recruiter Performance - ${r.username || ''}</div>
+      <div class="rf-row">
+        <div class="rf-name">${r.username || ''}</div>
+        <div class="rf-tiles">
+          ${rfTile('Today', r.today, 'rf-blue')}
+          ${rfTile('7-Day Avg', (r.avg_last_7 ?? r.avg7d), 'rf-green')}
+          ${rfTile('Yesterday', r.yesterday, 'rf-yellow')}
+          ${rfTile('30-Day Avg', (r.avg_last_30 ?? r.avg30d ?? 0), 'rf-lav')}
+        </div>
+      </div>
+    </section>`;
+  }
+
+  async function rfFetch(){
+    if(RF_USE_MOCK){
+      return { recruiters: [
+        { username:'admin1', today:10, avg_last_7:8, yesterday:6, avg_last_30:12 },
+        { username:'admin2', today:7,  avg_last_7:9, yesterday:8, avg_last_30:9.1 }
+      ]};
+    }
+    const endpoints = ['/api/performance','/api/recruiters/performance'];
+    let lastErr = null;
+    for(const url of endpoints){
+      try{
+        const res = await fetch(url, { headers:{'Accept':'application/json'} });
+        if(!res.ok) throw new Error('HTTP '+res.status+' @ '+url);
+        return await res.json();
+      }catch(e){ lastErr = e; }
+    }
+    throw lastErr || new Error('No API endpoints reachable');
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const root = document.getElementById('rf-cards');
+    try{
+      const data = await rfFetch();
+      const list = Array.isArray(data.recruiters) ? data.recruiters : [];
+      root.innerHTML = list.length ? list.map(rfCard).join('') : '<p>No recruiters found.</p>';
+    }catch(e){
+      root.innerHTML = '<div class="rf-error">Error loading data: ' + (e && e.message ? e.message : e) + '</div>';
+    }
+  });
+</script>
+{% endblock %}

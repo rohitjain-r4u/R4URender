@@ -1,0 +1,350 @@
+
+{% extends "base.html" %}
+{% block content %}
+{% if csrf_token is defined %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% else %}
+<meta name="csrf-token" content="">
+{% endif %}
+
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-start p-3 rounded-3 mb-3" style="background:linear-gradient(90deg,#3b82f6,#2563eb); color:#fff;">
+    <div>
+      <h2 class="m-0 fw-bold">Reports <small class="fw-normal">({{ total }} results)</small></h2>
+      <div class="form-check form-switch mt-2">
+        <input class="form-check-input" type="checkbox" id="added_by_me_toggle" {% if (added_by_me or '1') == '1' %}checked{% endif %}>
+        <label class="form-check-label" for="added_by_me_toggle">Added by me</label>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button id="export-btn" class="btn btn-light btn-sm"><i class="bi bi-download"></i> Export</button>
+      {% if can_save %}
+      <button id="save-report-btn" class="btn btn-warning btn-sm"><i class="bi bi-bookmark-plus"></i> Save as report</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Search form -->
+  <form id="search-form" class="p-3 rounded-3 border bg-white shadow-sm mb-3" method="GET" action="{{ url_for('reports_bp.reports_index') }}">
+    <div class="row g-3 align-items-end">
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label">Name</label>
+        <input name="name" class="form-control" value="{{ name or '' }}">
+      </div>
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label">Phone</label>
+        <input name="phone" class="form-control" value="{{ phone or '' }}">
+      </div>
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label">Email</label>
+        <input name="email" class="form-control" value="{{ email or '' }}">
+      </div>
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label">Location</label>
+        <input name="location" class="form-control" value="{{ location or '' }}">
+      </div>
+
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label">Key Skills</label>
+        <input name="key_skills" class="form-control" placeholder="e.g. java, selenium, api" value="{{ key_skills or '' }}">
+      </div>
+
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label">Calling status</label>
+        <select name="calling_status" class="form-select form-select-sm">
+          <option value="" {% if not calling_status %}selected{% endif %}>Any Calling status</option>
+          <option value="Screen Select" {% if calling_status=='Screen Select' %}selected{% endif %}>Screen Select</option>
+          <option value="Shared With Client" {% if calling_status=='Shared With Client' %}selected{% endif %}>Shared With Client</option>
+          <option value="Not interested" {% if calling_status=='Not interested' %}selected{% endif %}>Not interested</option>
+          <option value="Not Reachable" {% if calling_status=='Not Reachable' %}selected{% endif %}>Not Reachable</option>
+          <option value="Rejected" {% if calling_status=='Rejected' %}selected{% endif %}>Rejected</option>
+        </select>
+      </div>
+
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label">Profile status</label>
+        <select name="profile_status" class="form-select form-select-sm">
+          <option value="" {% if not profile_status %}selected{% endif %}>Any Profile status</option>
+          <option value="Profile shared with client" {% if profile_status=='Profile shared with client' %}selected{% endif %}>Profile shared with client</option>
+          <option value="Review Pending by client" {% if profile_status=='Review Pending by client' %}selected{% endif %}>Review Pending by client</option>
+          <option value="R2 Pending" {% if profile_status=='R2 Pending' %}selected{% endif %}>R2 Pending</option>
+          <option value="R3 Pending" {% if profile_status=='R3 Pending' %}selected{% endif %}>R3 Pending</option>
+          <option value="R1 to be schedule" {% if profile_status=='R1 to be schedule' %}selected{% endif %}>R1 to be schedule</option>
+          <option value="R2 scheduled" {% if profile_status=='R2 scheduled' %}selected{% endif %}>R2 scheduled</option>
+          <option value="R3 scheduled" {% if profile_status=='R3 scheduled' %}selected{% endif %}>R3 scheduled</option>
+          <option value="R1 scheduled" {% if profile_status=='R1 scheduled' %}selected{% endif %}>R1 scheduled</option>
+          <option value="R1 FBP" {% if profile_status=='R1 FBP' %}selected{% endif %}>R1 FBP</option>
+          <option value="R2 FBP" {% if profile_status=='R2 FBP' %}selected{% endif %}>R2 FBP</option>
+          <option value="R3 FBP" {% if profile_status=='R3 FBP' %}selected{% endif %}>R3 FBP</option>
+          <option value="HR Round" {% if profile_status=='HR Round' %}selected{% endif %}>HR Round</option>
+          <option value="Offered" {% if profile_status=='Offered' %}selected{% endif %}>Offered</option>
+          <option value="R2 Rejected" {% if profile_status=='R2 Rejected' %}selected{% endif %}>R2 Rejected</option>
+          <option value="R3 Rejected" {% if profile_status=='R3 Rejected' %}selected{% endif %}>R3 Rejected</option>
+          <option value="R1 Rejected" {% if profile_status=='R1 Rejected' %}selected{% endif %}>R1 Rejected</option>
+        </select>
+      </div>
+
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label">Requirement</label>
+        <select name="requirement_id" id="requirement_id" class="form-select form-select-sm">
+          <option value="" {% if not requirement_id %}selected{% endif %}>Any Requirement</option>
+        </select>
+      </div>
+
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label">Interview date</label>
+        <input type="date" name="interview_date" class="form-control" value="{{ interview_date or '' }}">
+      </div>
+
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary"><i class="bi bi-search"></i> Search</button>
+        <button type="button" id="reset-btn" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+        <input type="hidden" id="added_by_me_hidden" name="added_by_me" value="{{ added_by_me or '1' }}">
+      </div>
+    </div>
+  </form>
+
+  
+
+
+  <div class="row g-3">
+    <div class="col-lg-9">
+      <div class="table-responsive bg-white rounded-3 border shadow-sm p-2">
+        {% if candidates %}
+        <table class="table table-hover align-middle" id="candidatesTable">
+          <thead>
+            <tr>
+              <th>Job Title</th>
+              <th>Requirement</th>
+              <th>Candidate Name</th>
+              <th>Total Experience</th>
+              <th>Phone Number</th>
+              <th>Email ID</th>
+              <th>Notice Period</th>
+              <th>Current Location</th>
+              <th>Calling Status</th>
+              <th>Profile Status</th>
+              <th>Comments</th>
+              <th>Added By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in candidates %}
+            <tr>
+              <td>{{ c.job_title or '-' }}</td>
+              <td>
+                {% if c.req_id %}
+                  <a href="{{ url_for('requirement_candidates', req_id=c.req_id) }}">{{ c.requirement_name or ('Requirement ' ~ c.req_id) }}</a>
+                  {% if c.client_name %}<small class="text-muted"> ({{ c.client_name }})</small>{% endif %}
+                {% else %}-{% endif %}
+              </td>
+              <td>{{ c.candidate_name or '-' }}</td>
+              <td>{{ c.total_experience or '-' }}</td>
+              <td>{{ c.phones | join(', ') if c.phones else '-' }}</td>
+              <td>{{ c.emails | join(', ') if c.emails else '-' }}</td>
+              <td>{{ c.notice_period or '-' }}</td>
+              <td>{{ c.current_location or '-' }}</td>
+              <td>{{ c.calling_status or '-' }}</td>
+              <td>{{ c.profile_status or '-' }}</td>
+              <td>{{ c.comments or '-' }}</td>
+              <td>{{ c.added_by_name or c.added_by or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <nav aria-label="pagination">
+          {% if paginator.pages > 1 %}
+          <ul class="pagination justify-content-center mt-3">
+            {% set links = paginator.page_links() %}
+            {% if links.prev %}<li class="page-item"><a class="page-link" href="{{ links.prev }}">Prev</a></li>{% endif %}
+            {% for p, url, current in paginator.windowed_pages(window=2) %}
+              <li class="page-item {% if current %}active{% endif %}"><a class="page-link" href="{{ url }}">{{ p }}</a></li>
+            {% endfor %}
+            {% if links.next %}<li class="page-item"><a class="page-link" href="{{ links.next }}">Next</a></li>{% endif %}
+          </ul>
+          {% endif %}
+        </nav>
+        {% else %}
+          <div class="p-4">No results.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-lg-3">
+      <div class="bg-white rounded-3 border shadow-sm p-3 sticky-top" style="top: 12px;">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="m-0">Saved reports</h5>
+          <button id="refresh-reports" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat"></i></button>
+        </div>
+        <div id="reportsList" class="list-group small">
+          <div class="text-muted">Loading…</div>
+        </div>
+        <div class="form-text mt-2">Anyone can run public reports. Only admins can create/delete.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Save dialog -->
+<div class="modal fade" id="saveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Save report</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Report name</label>
+          <input type="text" id="repName" class="form-control" placeholder="e.g. R2 pending - Bangalore">
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="repPublic" checked>
+          <label class="form-check-label" for="repPublic">Public (visible to everyone)</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="repSaveConfirm">Save</button>
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const token = document.querySelector("meta[name='csrf-token']")?.content || '';
+
+  // Reset
+  document.getElementById('reset-btn')?.addEventListener('click', ()=>{
+    const u=new URL(window.location.href); u.search=''; window.location=u.toString();
+  });
+
+  // Added by me toggle
+  (function(){
+    var toggle = document.getElementById('added_by_me_toggle');
+    var hidden = document.getElementById('added_by_me_hidden');
+    function setParamAndReload(val){
+      if(hidden) hidden.value = val;
+      const u = new URL(window.location.href);
+      u.searchParams.set('added_by_me', val);
+      u.searchParams.delete('page');
+      window.location = u.toString();
+    }
+    if(toggle){
+      const p = new URL(window.location.href).searchParams.get('added_by_me');
+      toggle.checked = (p === '0') ? false : true;
+      if(hidden) hidden.value = toggle.checked ? '1' : '0';
+      toggle.addEventListener('change', function(){
+        setParamAndReload(this.checked ? '1' : '0');
+      });
+    }
+  })();
+
+  // Requirements list (only if backend provided a URL)
+  const reqJsonUrl = "{{ requirements_json_url or '' }}";
+  if (reqJsonUrl) {
+    fetch(reqJsonUrl)
+      .then(r=>r.json()).then(data=>{
+        if(!data.ok) return;
+        const select = document.getElementById('requirement_id');
+        if (!select) return;
+        (data.requirements||[]).forEach(r=>{
+          const opt=document.createElement('option');
+          opt.value=r.id; 
+          opt.textContent=(r.requirement_name||('Requirement '+r.id))+(r.client_name?(' ('+r.client_name+')'):'');
+          if ("{{ requirement_id or '' }}" && String(r.id) === "{{ requirement_id or '' }}") opt.selected=true;
+          select.appendChild(opt);
+        });
+      }).catch(()=>{});
+  }
+
+  // Export ALL using current filters
+  document.getElementById('export-btn')?.addEventListener('click', async ()=>{
+    const form = document.getElementById('search-form');
+    const data = Object.fromEntries(new FormData(form).entries());
+    const resp = await fetch("{{ url_for('reports_bp.export_all') }}", {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':token},
+      body: JSON.stringify(data)
+    });
+    if(!resp.ok){ alert('Export failed'); return; }
+    const blob = await resp.blob(); const url = URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='report_export.csv'; a.click(); URL.revokeObjectURL(url);
+  });
+
+  // Saved reports list
+  async function loadReports(){
+    const wrap = document.getElementById('reportsList'); wrap.innerHTML = '<div class="text-muted">Loading…</div>';
+    const resp = await fetch("{{ url_for('reports_bp.list_reports') }}");
+    const data = await resp.json();
+    if(!data.ok){ wrap.innerHTML = '<div class="text-danger">Failed to load</div>'; return; }
+    if(!(data.items||[]).length){ wrap.innerHTML = '<div class="text-muted">No saved reports yet.</div>'; return; }
+    wrap.innerHTML = '';
+    (data.items||[]).forEach(r=>{
+      const row = document.createElement('div');
+      row.className = 'list-group-item d-flex justify-content-between align-items-center';
+      const runUrl = "{{ url_for('reports_bp.run_saved_report', slug='__SLUG__') }}".replace('__SLUG__', r.slug);
+      row.innerHTML = `
+        <a class="text-decoration-none" href="${runUrl}">
+          <div class="fw-semibold">${r.name}</div>
+          <div class="small text-muted">${r.is_public ? 'Public' : 'Private'} • ${new Date(r.created_at).toLocaleString()}</div>
+        </a>
+        {% if can_save %}
+          <button class="btn btn-sm btn-outline-danger delete-report" data-id="${r.id}" title="Delete"><i class="bi bi-trash"></i></button>
+        {% endif %}
+      `;
+      wrap.appendChild(row);
+    });
+  }
+  loadReports();
+  document.getElementById('refresh-reports')?.addEventListener('click', loadReports);
+
+  // Delete (admin)
+  document.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('.delete-report');
+    if(!btn) return;
+    e.preventDefault();
+    if(!confirm('Delete this report?')) return;
+    const resp = await fetch("{{ url_for('reports_bp.delete_report', rid=0) }}".replace('/0', `/${btn.dataset.id}`), {
+      method:'POST', headers:{'X-CSRFToken': token}
+    });
+    const data = await resp.json();
+    if(data.ok) loadReports(); else alert('Delete failed');
+  });
+
+  // Save as report (admin)
+  {% if can_save %}
+  const saveBtn = document.getElementById('save-report-btn');
+  const modalEl = document.getElementById('saveModal');
+  let bsModal = window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+  saveBtn?.addEventListener('click', ()=>{ bsModal?.show(); });
+  document.getElementById('repSaveConfirm')?.addEventListener('click', async ()=>{
+    const name = document.getElementById('repName').value.trim();
+    const is_public = document.getElementById('repPublic').checked;
+    if(!name){ alert('Please enter a name'); return; }
+    const form = document.getElementById('search-form');
+    const filters = Object.fromEntries(new FormData(form).entries());
+    const resp = await fetch("{{ url_for('reports_bp.save_report') }}", {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':token},
+      body: JSON.stringify({ name, is_public, filters })
+    });
+    const data = await resp.json();
+    if(!data.ok){ alert(data.error || 'Save failed'); return; }
+    bsModal?.hide(); document.getElementById('repName').value = ''; loadReports();
+  });
+  {% endif %}
+  
+});
+</script>
+<select name="requirement_id">
+  <option value="">All requirements</option>
+  {% for r in requirement_options %}
+    <option value="{{ r.id }}" {% if request.args.get('requirement_id')|int == r.id %}selected{% endif %}>
+      {{ r.requirement_name }}
+    </option>
+  {% endfor %}
+</select>
+{% endblock %}

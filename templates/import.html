@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Import Candidates</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+  <style>
+    /* small helper styles used by the import wizard */
+    .sample-values { font-size: 0.9rem; color: #6c757d; }
+    .map-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .map-row .col-name { width: 32%; font-weight:600; }
+    .map-row .col-samples { width: 40%; }
+    .map-row .col-select { width: 28%; }
+    .invalid-cell { background: #f8d7da !important; }
+  </style>
+</head>
+<body>
+<div class="container py-4">
+  <h3>Import Candidates</h3>
+  <div id="step1" class="card p-3 mb-3">
+    <h5>Step 1 — Upload or Paste</h5>
+    <div class="mb-2">
+      <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" class="form-control" />
+      <small class="form-text text-muted">Upload Excel / CSV or paste rows below</small>
+    </div>
+    <div class="mb-2">
+      <textarea id="pasteArea" class="form-control" rows="6" placeholder="Paste CSV / tabular data here"></textarea>
+    </div>
+    <div class="d-flex gap-2">
+      <button id="btnParse" class="btn btn-primary">Parse</button>
+      <button id="btnClear" class="btn btn-outline-secondary">Clear</button>
+    </div>
+  </div>
+
+  <div id="step2" class="card p-3 mb-3" style="display:none;">
+    <h5>Step 2 — Map Columns</h5>
+    <div id="mappingSummary" class="mb-2"></div>
+    <div id="mappingContainer"></div>
+
+    <div class="mt-3 d-flex justify-content-between align-items-center">
+      <div id="mappingStats" class="text-muted"></div>
+      <div>
+        <button id="btnBackToUpload" class="btn btn-outline-secondary">Back</button>
+        <button id="btnToPreview" class="btn btn-primary">Continue → Preview</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="step3" class="card p-3 mb-3" style="display:none;">
+    <h5>Step 3 — Preview & Validate</h5>
+    <div id="previewContainer"></div>
+    <div class="mt-3 d-flex justify-content-end gap-2">
+      <button id="btnBackToMap" class="btn btn-outline-secondary">Back to Mapping</button>
+      <button id="btnSaveImport" class="btn btn-success">Save All</button>
+    </div>
+  </div>
+
+  <div id="step4" class="card p-3 mb-3" style="display:none;">
+    <h5>Step 4 — Done</h5>
+    <div id="importResult"></div>
+  </div>
+</div>
+
+<script>
+/* Minimal import wizard JS:
+   - parses file input (delegate to backend)
+   - shows mapping UI (dropdowns)
+   - enforces exclusivity (one system field mapped once)
+   - opens mapping overlay (fullscreen) when mapping begins
+*/
+
+/* utility: read CSRF token from meta */
+function getCSRF() {
+  const m = document.querySelector('meta[name="csrf-token"]');
+  return m ? m.getAttribute('content') : '';
+}
+
+/* UI state */
+let parsedHeaders = [];
+let samples = {};
+let suggested_mapping = {};
+let system_fields = [];
+let current_mapping = {}; // sheet header -> system field or ''
+
+// helpers to show steps
+function showStep(n) {
+  document.querySelectorAll('#step1,#step2,#step3,#step4').forEach(el=>el.style.display='none');
+  document.querySelector('#step'+n).style.display='block';
+}
+
+/* parse button behavior */
+document.addEventListener('DOMContentLoaded', function(){
+  const btnParse = document.getElementById('btnParse');
+  const fileInput = document.getElementById('fileInput');
+  const pasteArea = document.getElementById('pasteArea');
+  const container = document.getElementById('mappingContainer');
+  const mappingStats = document.getElementById('mappingStats');
+
+  btnParse.addEventListener('click', function(){
+    // prefer file upload
+    const file = fileInput.files && fileInput.files[0];
+    if(file){
+      const fd = new FormData();
+      fd.append('file', file);
+      // include requirement id if in page (optional)
+      fetch('/api/import/parse', { method: 'POST', body: fd, headers: { 'X-CSRFToken': getCSRF() } })
+        .then(r=>r.json()).then(onParsed).catch(err=>alert('Parse failed: '+err));
+    } else if(pasteArea.value.trim()){
+      // send pasted content as a text blob to server (not implemented backend for pasted CSV in compatibility; do simple client-side parse)
+      parsePastedCSV(pasteArea.value);
+    } else {
+      alert('Please select a file or paste data.');
+    }
+  });
+
+  document.getElementById('btnClear').addEventListener('click', ()=>{
+    fileInput.value=''; pasteArea.value='';
+  });
+
+  function onParsed(resp){
+    if(!resp.ok){ alert('Parse error: '+(resp.error||'unknown')); return; }
+    parsedHeaders = resp.headers || [];
+    samples = resp.samples || {};
+    suggested_mapping = resp.suggested_mapping || {};
+    system_fields = resp.system_fields || [];
+    // init mapping
+    current_mapping = {};
+    parsedHeaders.forEach(h => { current_mapping[h] = suggested_mapping[h] || ''; });
+    renderMapping();
+    showMappingFullscreen(); // open overlay (makes mapping full-screen)
+    showStep(2);
+  }
+
+  function renderMapping(){
+    container.innerHTML = '';
+    parsedHeaders.forEach((h, idx) => {
+      const row = document.createElement('div'); row.className='map-row';
+      const colName = document.createElement('div'); colName.className='col-name'; colName.textContent = h;
+      const colSamples = document.createElement('div'); colSamples.className='col-samples';
+      colSamples.innerHTML = '<div class="sample-values">'+(samples[h] ? samples[h].join(' — ') : '')+'</div>';
+
+      const colSelect = document.createElement('div'); colSelect.className='col-select';
+      const sel = document.createElement('select'); sel.className='form-select map-select';
+      const optIgnore = document.createElement('option'); optIgnore.value=''; optIgnore.text='-- No need to add --'; sel.appendChild(optIgnore);
+      system_fields.forEach(sf=>{
+        const opt = document.createElement('option'); opt.value = sf; opt.text = sf.replace(/_/g,' ');
+        if(current_mapping[h] && current_mapping[h] === sf) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.dataset.header = h;
+      colSelect.appendChild(sel);
+
+      row.appendChild(colName); row.appendChild(colSamples); row.appendChild(colSelect);
+      container.appendChild(row);
+
+      sel.addEventListener('change', onMappingChange);
+    });
+    refreshExclusivity();
+    mappingStats.textContent = `${parsedHeaders.length} columns detected. ${Object.values(current_mapping).filter(Boolean).length} mapped.`;
+  }
+
+  function onMappingChange(e){
+    const header = e.target.dataset.header;
+    current_mapping[header] = e.target.value || '';
+    refreshExclusivity();
+    const mappedCount = Object.values(current_mapping).filter(Boolean).length;
+    mappingStats.textContent = `${parsedHeaders.length} columns detected. ${mappedCount} mapped.`;
+  }
+
+  function refreshExclusivity(){
+    const selects = Array.from(document.querySelectorAll('select.map-select'));
+    const selected = new Set(selects.map(s => s.value).filter(Boolean));
+    selects.forEach(s => {
+      const cur = s.value;
+      s.querySelectorAll('option').forEach(opt=>{
+        if(!opt.value) return;
+        // disable if chosen elsewhere but keep if it's the current select value
+        opt.disabled = selected.has(opt.value) && opt.value !== cur;
+      });
+    });
+  }
+
+  // preview step
+  document.getElementById('btnToPreview').addEventListener('click', function(){
+    // collect mapping into payload and call validate
+    const mappingPayload = {...current_mapping};
+    // gather raw rows? For now send mapping only, backend parse will re-read file uploaded in session.
+    fetch('/api/import/validate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCSRF()},
+      body: JSON.stringify({ mapping: mappingPayload })
+    }).then(r=>r.json()).then(resp=>{
+      if(!resp.ok){ alert('Validate error: '+(resp.error||'unknown')); return; }
+      showStep(3);
+      renderPreview(resp.rows || [], resp.errors || []);
+    }).catch(err=>alert('Validate failed: '+err));
+  });
+
+  // Back/Save controls
+  document.getElementById('btnBackToUpload').addEventListener('click', ()=> showStep(1));
+  document.getElementById('btnBackToMap').addEventListener('click', ()=> showStep(2));
+  document.getElementById('btnSaveImport').addEventListener('click', function(){
+    const mappingPayload = {...current_mapping};
+    fetch('/api/import/save', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-CSRFToken': getCSRF()},
+      body: JSON.stringify({ requirement_id: null, mapping: mappingPayload })
+    }).then(r=>r.json()).then(resp=>{
+      if(!resp.ok){ alert('Save error: '+(resp.error||'unknown')); return; }
+      showStep(4);
+      document.getElementById('importResult').innerHTML = `<div class="alert alert-success">Inserted ${resp.inserted} rows. Skipped ${resp.skipped.length} rows.</div>`;
+    }).catch(err=>alert('Save failed: '+err));
+  });
+
+  // simple preview renderer (tabular)
+  function renderPreview(rows, errors){
+    const pc = document.getElementById('previewContainer');
+    pc.innerHTML = '';
+    if(!rows.length){ pc.innerHTML = '<div class="text-muted">No rows returned for preview.</div>'; return; }
+    const tbl = document.createElement('table'); tbl.className='table table-sm table-bordered';
+    const thead = document.createElement('thead'); const tbody = document.createElement('tbody');
+    // columns = union of keys
+    const cols = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
+    const headerRow = document.createElement('tr'); cols.forEach(c=>{ const th = document.createElement('th'); th.textContent = c; headerRow.appendChild(th); }); thead.appendChild(headerRow);
+    rows.forEach((r, idx)=>{
+      const tr = document.createElement('tr');
+      cols.forEach(c=>{
+        const td = document.createElement('td');
+        td.textContent = r[c] || '';
+        // find errors for this row/col and mark
+        if(errors && errors.find(e => e.row === idx+1 && e.field === c)){
+          td.classList.add('invalid-cell');
+          td.title = errors.find(e => e.row === idx+1 && e.field === c).message || 'Invalid';
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(thead); tbl.appendChild(tbody);
+    pc.appendChild(tbl);
+  }
+
+  // parse pasted CSV fallback (very small parser)
+  function parsePastedCSV(text){
+    const lines = text.trim().split(/\r?\n/).map(l=>l.split('\t'));
+    if(lines.length < 2){ alert('Paste a header row and at least one data row'); return; }
+    const headers = lines[0].map(h=>h.trim());
+    const samplesLocal = {};
+    headers.forEach((h, i) => { samplesLocal[h] = []; });
+    for(let r=1; r<Math.min(lines.length, 10); r++){
+      lines[r].forEach((c, i) => { if(c && c.trim()) samplesLocal[headers[i]].push(c.trim()); });
+    }
+    const suggested = {};
+    headers.forEach(h => {
+      // best-effort mapping heuristic on client
+      const key = h.trim().toLowerCase().replace(/[^a-z0-9 ]/g,'');
+      // naive mapping to common names
+      if(key.includes('name')) suggested[h] = 'candidate_name';
+      else if(key.includes('email')) suggested[h] = 'emails';
+      else if(key.includes('phone')||key.includes('mobile')) suggested[h] = 'phones';
+      else suggested[h] = '';
+    });
+    parsedHeaders = headers; samples = samplesLocal; suggested_mapping = suggested; system_fields = ['candidate_name','job_title','application_date','phones','emails','current_company','total_experience','comments'];
+    current_mapping = {}; parsedHeaders.forEach(h=> current_mapping[h] = suggested_mapping[h]||'');
+    renderMapping();
+    showMappingFullscreen();
+    showStep(2);
+  }
+
+  // Fullscreen overlay helpers (the overlay is created when mapping begins)
+  function showMappingFullscreen(){
+    const step2 = document.getElementById('step2');
+    if(!step2) return;
+    let ov = document.getElementById('mappingFullscreenOverlay');
+    if(ov) return; // already open
+    ov = document.createElement('div'); ov.id='mappingFullscreenOverlay';
+    ov.style.position='fixed'; ov.style.left='0'; ov.style.top='0'; ov.style.width='100vw'; ov.style.height='100vh';
+    ov.style.background='rgba(255,255,255,0.98)'; ov.style.zIndex=2000; ov.style.overflow='auto'; ov.style.padding='20px';
+    const clone = step2.cloneNode(true); clone.id='step2_full';
+    ov.appendChild(clone);
+    const closeBtn = document.createElement('button'); closeBtn.className='btn btn-secondary'; closeBtn.style.position='fixed'; closeBtn.style.right='18px'; closeBtn.style.top='18px'; closeBtn.textContent='Close'; closeBtn.addEventListener('click', ()=>{ ov.remove(); });
+    ov.appendChild(closeBtn);
+    document.body.appendChild(ov);
+    // rebind exclusivity in cloned node
+    setTimeout(()=> {
+      const selects = ov.querySelectorAll('select.map-select');
+      selects.forEach(s => s.addEventListener('change', function(){ /* no-op cloning ensures original will handle */ }));
+    }, 50);
+  }
+
+});
+</script>
+
+<!-- Inserted CSS/JS for drag-drop and fullscreen overlay -->
+<style>
+/* Fullscreen overlay for mapping step (extra styles) */
+.fullscreen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(255,255,255,0.98);
+  z-index: 2000;
+  overflow: auto;
+  padding: 24px;
+}
+#dropzoneArea {
+  border: 2px dashed #ced4da;
+  padding: 20px;
+  border-radius: 6px;
+  text-align: center;
+  color: #6c757d;
+  cursor: pointer;
+}
+#dropzoneArea.dragover {
+  background: #f8f9fa;
+  border-color: #868e96;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // create drop area before file input
+  const fileInput = document.getElementById('fileInput');
+  if(fileInput && fileInput.parentNode){
+    const drop = document.createElement('div'); drop.id='dropzoneArea';
+    drop.innerHTML = '<div><strong>Drag & drop Excel/CSV here</strong><div class="small text-muted">or click to choose file</div></div>';
+    fileInput.parentNode.insertBefore(drop, fileInput);
+    drop.addEventListener('click', ()=> fileInput.click());
+    drop.addEventListener('dragover', (e)=>{ e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', ()=> drop.classList.remove('dragover'));
+    drop.addEventListener('drop', (e)=>{ e.preventDefault(); drop.classList.remove('dragover'); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if(f) fileInput.files = e.dataTransfer.files; });
+    fileInput.addEventListener('change', function(){ if(this.files && this.files[0]) drop.innerHTML = '<div><strong>' + this.files[0].name + '</strong><div class="small text-muted">Ready to parse</div></div>'; });
+  }
+});
+</script>
+
+</body>
+</html>

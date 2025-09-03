@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block content %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h3 class="mb-0">Import Candidates</h3>
+      <div class="text-muted">
+        Requirement:
+        <strong>{{ requirement.requirement_name }}</strong>
+        <span class="ms-2 badge bg-secondary">ID: {{ requirement.id }}</span>
+      </div>
+    </div>
+    <div class="text-muted">Wizard: Upload → Map → Preview → Save</div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress mb-4" style="height: 8px;">
+    <div id="wizardProgress" class="progress-bar" role="progressbar" style="width: 25%;"></div>
+  </div>
+
+  <!-- Step 1 -->
+  <div id="step1" class="card shadow-sm mb-4">
+    <div class="card-header fw-semibold">Step 1 — Upload file or paste data</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Upload CSV/TSV/Excel</label>
+          <input id="file" type="file" class="form-control" accept=".xlsx,.xlsm,.csv,.tsv,.txt" />
+          <div class="form-text">Supported: .xlsx, .xlsm, .csv, .tsv. First row should be headers.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Or paste table (CSV/TSV)</label>
+          <textarea id="pasteArea" rows="6" class="form-control" placeholder="Paste from Excel/CSV here"></textarea>
+        </div>
+      </div>
+      <div class="mt-3 d-flex gap-2">
+        <button id="continuePreview" class="btn btn-primary">Continue → Preview</button>
+        <a href="{{ url_for('requirements') }}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div id="step2" class="card shadow-sm mb-4 d-none">
+    <div class="card-header fw-semibold">Step 2 — Map your columns</div>
+    <div class="card-body">
+      <div class="alert alert-info mb-3">
+        System fields to map to:
+        <code>{{ sheet_columns|join(", ") }}</code>
+      </div>
+      <div class="table-responsive">
+        <div id="previewHolder"></div>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-outline-secondary" id="backToUpload">← Back</button>
+        <button class="btn btn-primary" id="toSave">Continue → Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div id="step3" class="card shadow-sm mb-4 d-none">
+    <div class="card-header fw-semibold">Step 3 — Preview & Validate (editable)</div>
+    <div class="card-body">
+      <div id="previewHolder"></div>
+      <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-outline-secondary" id="backToMapping">← Back</button>
+        <button class="btn btn-primary" id="toSave">Continue → Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4 -->
+  <div id="step4" class="card shadow-sm mb-5 d-none">
+    <div class="card-header fw-semibold">Step 4 — Save & Finish</div>
+    <div class="card-body">
+      <div id="saveMsg" class="mb-3"></div>
+      <div class="d-flex gap-2">
+        <button id="btnSave" class="btn btn-success">Save All</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('requirements') }}">Back to Requirements</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('candidates_list') }}?requirement_id={{ requirement.id }}">Go to Candidates List</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabulator -->
+<link href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css" rel="stylesheet">
+<script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
+
+<script>
+(function(){
+  const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+  let rawRows = [];
+  let grid = null;
+  const requirementId = {{ requirement.id }};
+
+  function setStep(n){
+    [1,2,3,4].forEach(s => document.getElementById('step'+s).classList.add('d-none'));
+    document.getElementById('step'+n).classList.remove('d-none');
+    document.getElementById('wizardProgress').style.width = ({1:25,2:50,3:75,4:100}[n]||25)+'%';
+  }
+
+  document.getElementById('continuePreview').addEventListener('click', async ()=>{
+    try {
+      let fd = new FormData();
+      const f = document.getElementById('file').files[0];
+      const pasted = document.getElementById('pasteArea').value.trim();
+
+      if(f){
+        fd.append('file', f, f.name);
+      } else if(pasted){
+        fd.append('pasted_text', pasted);
+      } else {
+        alert("Please upload a file or paste data first.");
+        return;
+      }
+
+      const res = await fetch(`/requirement/${requirementId}/candidates/import/upload`, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-CSRFToken': _csrfToken }
+      });
+      const j = await res.json();
+      if(!j.rows){ alert(j.error || 'No rows returned from server'); return; }
+      rawRows = j.rows;
+      buildPreview();
+      setStep(2);
+    } catch(err) {
+      console.error(err);
+      alert("Preview failed: " + err);
+    }
+  });
+
+  function buildPreview(){
+    const holder = document.getElementById('previewHolder');
+    holder.innerHTML='';
+    const fields = {{ sheet_columns|tojson }};
+    const columns = fields.map(f=>({title:f, field:f, editor:"input"}));
+    grid = new Tabulator(holder, { data: rawRows, columns, layout:"fitDataStretch", height:"500px" });
+  }
+
+  document.getElementById('backToUpload').addEventListener('click', ()=>setStep(1));
+  document.getElementById('backToMapping').addEventListener('click', ()=>setStep(2));
+  document.getElementById('toSave').addEventListener('click', ()=>setStep(4));
+
+  document.getElementById('btnSave').addEventListener('click', async function(){
+    const rows = grid ? grid.getData() : rawRows;
+    document.getElementById('saveMsg').innerHTML = '<div class="alert alert-info">Saving...</div>';
+    try {
+      const res = await fetch('/requirement/'+requirementId+'/candidates/import/commit', {
+        method:'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken },
+        body: JSON.stringify({ rows })
+      });
+      const data = await res.json();
+      if(!data.ok){ document.getElementById('saveMsg').innerHTML='<div class="alert alert-danger">Save failed</div>'; return; }
+      document.getElementById('saveMsg').innerHTML = `<div class="alert alert-success">Inserted ${data.inserted} rows. Skipped ${data.skipped?.length||0} rows.</div>`;
+    }catch(err){ document.getElementById('saveMsg').innerHTML='<div class="alert alert-danger">Save error</div>'; }
+  });
+
+  setStep(1);
+})();
+</script>
+{% endblock %}
