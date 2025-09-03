@@ -1627,7 +1627,6 @@ def import_candidates_wizard(req_id):
     methods=["GET"],
     endpoint="import_bp.import_page"
 )
-@login_required
 def import_page_alias(req_id):
     # Reuse the same logic by redirecting to the main wizard route
     return redirect(url_for("import_wizard", req_id=req_id))
