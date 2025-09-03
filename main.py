@@ -26,6 +26,20 @@ from flask import jsonify
 
 app = Flask(__name__)
 
+# --- Flask-Login setup ---
+from flask_login import LoginManager
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"   # redirect unauthenticated users here
+
+@login_manager.user_loader
+def load_user(user_id):
+    # Import your User model and return a user instance
+    from models import User  # adjust if your User model is elsewhere
+    return User.get(user_id)  # must return None if not found
+
+
 from flask_mail import Mail, Message
 
 # Email config using environment variables
