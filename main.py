@@ -11,7 +11,7 @@ def get_db_cursor():
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     try:
-        yield cur
+        yield conn, cur   # ✅ return both conn and cur
         conn.commit()
     except Exception:
         conn.rollback()
@@ -19,6 +19,7 @@ def get_db_cursor():
     finally:
         cur.close()
         conn.close()
+
 
 
 import os
