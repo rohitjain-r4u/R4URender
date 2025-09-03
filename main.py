@@ -1599,21 +1599,6 @@ def users():
     return render_template('users.html', users=users_list, search=search)
 
 
-@app.route('/requirement/<int:req_id>/candidates/template', methods=['GET'])
-def download_candidate_template(req_id):
-    # Generate an Excel file with canonical headers
-    import io, openpyxl
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Template"
-    headers = ['Candidate Name','Phones','Emails','Job Title','Current Company','Total Experience','Notice Period','Current Location','Preferred Locations','Current CTC','Expected CTC','Key Skills','Education','Post Graduation','PF Docs Confirm','Notice Period Details','Current CTC (LPA)','Expected CTC (LPA)','Employee Size','Companies Worked','Calling Status','Profile Status','Comments']
-    ws.append(headers)
-    mem = io.BytesIO()
-    wb.save(mem)
-    mem.seek(0)
-    return send_file(mem, as_attachment=True, download_name='candidate_template.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-
 
 
 @app.route('/candidate/new', methods=['GET','POST'])
