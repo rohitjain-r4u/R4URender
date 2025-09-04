@@ -19,7 +19,6 @@ from export import export_bp
 from pagination import Paginator, sanitize_page_params
 from AllCandidates import all_candidates_bp   # import the blueprint
 from dashboard_routes import dashboard_bp
-from Reports import reports_bp
 from recruiter_performance import recruiter_perf_bp
 from datetime import datetime, timedelta
 from flask import jsonify
@@ -63,7 +62,6 @@ from flask_wtf.csrf import generate_csrf
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 app.register_blueprint(all_candidates_bp)     # register it
 app.register_blueprint(dashboard_bp)
-app.register_blueprint(reports_bp)
 app.register_blueprint(recruiter_perf_bp)
 
 @app.context_processor
