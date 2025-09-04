@@ -33,7 +33,9 @@ def db_cursor():
 reports_bp = Blueprint("reports_bp", __name__, template_folder="templates")
 
 # ---------------------- Helpers ----------------------
-def (_ensure_table() if not os.getenv('DISABLE_DB') else None):
+def (if not os.getenv('DISABLE_DB'):
+    if not os.getenv('DISABLE_DB'):
+    _ensure_table() if not os.getenv('DISABLE_DB') else None):
     with db_cursor() as (conn, cur):
         cur.execute("""
         CREATE TABLE IF NOT EXISTS saved_reports (
@@ -56,7 +58,9 @@ def _is_admin(): return bool(session.get('is_admin') or session.get('role') == '
 
 @reports_bp.record_once
 def _init(_state):
-    (_ensure_table() if not os.getenv('DISABLE_DB') else None)
+    (if not os.getenv('DISABLE_DB'):
+    if not os.getenv('DISABLE_DB'):
+    _ensure_table() if not os.getenv('DISABLE_DB') else None)
 
 # ---------------------- Pages ----------------------
 @reports_bp.route("/reports")
