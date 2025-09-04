@@ -18,7 +18,7 @@ from export import export_bp
 from pagination import Paginator, sanitize_page_params
 from AllCandidates import all_candidates_bp   # import the blueprint
 from dashboard_routes import dashboard_bp
-from Reports import reports_bp
+from reports import reports_bp
 from recruiter_performance import recruiter_perf_bp
 from datetime import datetime, timedelta
 from flask import jsonify
