@@ -71,6 +71,19 @@ def inject_csrf_token():
     return dict(csrf_token=generate_csrf)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
+# --- Compatibility: legacy import canonical columns (for old import routes/UI) ---
+SHEET_COLUMNS = [
+    "application_date", "job_title", "candidate_name", "current_company", "total_experience",
+    "phones", "emails", "notice_period", "current_location", "preferred_locations",
+    "ctc_current", "ectc", "key_skills", "education", "post_graduation",
+    "pf_docs_confirm", "notice_period_details",
+    "current_ctc_lpa", "expected_ctc_lpa", "employee_size", "companies_worked",
+    "calling_status", "profile_status", "comments",
+    "interview_date", "interview_time",
+    "added_date", "updated_date", "added_by"
+]
+
+
 
 # Production DB connection from environment (RDS / EC2 use)
 DATABASE_URL = os.getenv("DATABASE_URL")
