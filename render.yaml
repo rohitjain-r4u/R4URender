@@ -1,11 +1,9 @@
-
 services:
   - type: web
     name: reqtool-app
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r ReqTool_final_render/requirements.txt
     startCommand: gunicorn --chdir ReqTool_final_render main:app --bind 0.0.0.0:$PORT --timeout 120
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-
