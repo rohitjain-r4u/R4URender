@@ -23,8 +23,8 @@ try:
 except Exception:
     reports_bp = None
     import traceback
-    print('Warning: failed to import reports_bp at startup:
-' + traceback.format_exc())
+    print('Warning: failed to import reports_bp at startup:')
+    traceback.print_exc()
 from recruiter_performance import recruiter_perf_bp
 from datetime import datetime, timedelta
 from flask import jsonify
