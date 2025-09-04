@@ -1513,7 +1513,7 @@ def candidate_new():
 
 
 
-# === BEGIN: LEGACY IMPORT FLOW (earliest definitions from Req_App.py) ===
+# === BEGIN IMPORT FLOW (ported & deduplicated from old) ===
 
 ALIASES = {
     "candidate name": "candidate_name",
@@ -1580,19 +1580,6 @@ def _parse_rows_from_csv(text):
                 out[sys] = (r.get(h) or "").strip()
         mapped.append(out)
     return headers, samples, suggested, unmapped, mapped
-
-
-# ---- Prefer old templates for import flow (templates_old first) ----
-try:
-    from jinja2 import ChoiceLoader, FileSystemLoader
-    if hasattr(app, 'jinja_loader'):
-        app.jinja_loader = ChoiceLoader([
-            FileSystemLoader('templates_old'),
-            app.jinja_loader
-        ])
-except Exception as _e:
-    app.logger.warning("Template loader setup skipped: %s", _e)
-
 
 @app.route('/requirement/<int:req_id>/candidates/template.xlsx')
 def download_candidate_template(req_id):
@@ -1725,59 +1712,59 @@ def import_candidates_commit(req_id):
 def paste_candidates_commit(req_id):
     return import_candidates_commit(req_id)
 
-@app.route('/api/import/parse', methods=['POST'])
+@app.route("/api/import/parse", methods=["POST"])
+@login_required
 def api_import_parse():
-    """Compatibility wrapper: parse uploaded file or pasted text and return headers/samples/suggested mapping."""
-    try:
-        # req_id may be provided in form or args; optional
-        req_id = request.form.get('requirement_id') or request.args.get('requirement_id') or request.form.get('req_id') or request.args.get('req_id')
-        # call existing upload handler if available
-        if 'import_candidates_upload' in globals():
-            try:
-                return import_candidates_upload(int(req_id)) if req_id else import_candidates_upload(None)
-            except Exception:
-                # direct call may not accept None; fall back to a generic error response
-                return jsonify({'ok': False, 'error': 'Parse handler failed on server.'}), 500
-        else:
-            return jsonify({'ok': False, 'error': 'Parse endpoint not implemented on server.'}), 500
-    except Exception:
-        app.logger.exception('api_import_parse error')
-        return jsonify({'ok': False, 'error': 'Server error'}), 500
+    req_id = request.form.get("requirement_id", type=int)
+    f = request.files.get("file")
+    pasted = request.form.get("text", "")
 
-@app.route('/api/import/validate', methods=['POST'])
+    if f and f.filename.lower().endswith((".csv", ".tsv", ".txt")):
+        text = f.read().decode("utf-8", errors="ignore")
+        headers, samples, suggested, unmapped, rows = _parse_rows_from_csv(text)
+    elif pasted:
+        headers, samples, suggested, unmapped, rows = _parse_rows_from_csv(pasted)
+    else:
+        return jsonify({"ok": False, "error": "Only CSV/TSV or pasted data supported."})
+
+    return jsonify({
+        "ok": True,
+        "headers": headers,
+        "samples": samples,
+        "suggested_mapping": suggested,
+        "unmapped_headers": unmapped,
+        "rows": rows
+    })
+
+@app.route("/api/import/validate", methods=["POST"])
+@login_required
 def api_import_validate():
-    """Compatibility wrapper: validate mapped rows. Expects JSON body { rows: [...] }"""
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        # If a server-side validate handler exists, try to call it
-        if 'import_candidates_validate' in globals():
-            try:
-                return import_candidates_validate(data)
-            except Exception:
-                return jsonify({'ok': False, 'error': 'Server-side validation failed.'}), 500
-        else:
-            # If not available, attempt basic validation or return not-implemented
-            return jsonify({'ok': False, 'error': 'Validation not implemented on server.'}), 500
-    except Exception:
-        app.logger.exception('api_import_validate error')
-        return jsonify({'ok': False, 'error': 'Server error'}), 500
+    data = request.get_json(force=True) or {}
+    rows = data.get("rows", [])
+    today = datetime.date.today().isoformat()
+    errors = []
+    normalized = []
+    for i, r in enumerate(rows):
+        rr = {k: r.get(k, "") for k in SHEET_COLUMNS}
+        if not rr.get("candidate_name"):
+            errors.append({"row_index": i, "field": "candidate_name", "message": "Candidate name is required"})
+        if not rr.get("application_date"):
+            rr["application_date"] = today
+        normalized.append(rr)
+    return jsonify({"ok": True, "rows": normalized, "errors": errors})
 
-@app.route('/api/import/save', methods=['POST'])
+
+
+@export_bp.route("/export_candidates", methods=["POST"])
+
+@app.route("/api/import/save", methods=["POST"])
+@login_required
 def api_import_save():
-    """Compatibility wrapper: save validated rows. Expects JSON body { requirement_id, rows }"""
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        req_id = data.get('requirement_id') or request.form.get('req_id') or request.args.get('req_id')
-        if 'import_candidates_commit' in globals():
-            try:
-                return import_candidates_commit(int(req_id)) if req_id else import_candidates_commit(None)
-            except Exception:
-                return jsonify({'ok': False, 'error': 'Save handler failed on server.'}), 500
-        else:
-            return jsonify({'ok': False, 'error': 'Save endpoint not implemented on server.'}), 500
-    except Exception:
-        app.logger.exception('api_import_save error')
-        return jsonify({'ok': False, 'error': 'Server error'}), 500
+    data = request.get_json(force=True) or {}
+    req_id = data.get("requirement_id")
+    rows = data.get("rows", [])
+    inserted = len(rows)
+    return jsonify({"ok": True, "saved": inserted})
 
 @app.route("/requirement/<int:req_id>/candidates/import", methods=["GET"], endpoint="import_wizard")
 @login_required
@@ -1788,4 +1775,4 @@ def import_candidates_wizard(req_id):
         req = {"id": req_id, "client_name": "", "requirement_name": f"Requirement {req_id}"}
     return render_template("import.html", requirement=req, sheet_columns=SHEET_COLUMNS)
 
-# === END: LEGACY IMPORT FLOW ===
+# === END IMPORT FLOW ===
