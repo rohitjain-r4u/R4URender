@@ -316,15 +316,6 @@ showMappingFullscreen();
 
   ov.appendChild(closeBtn);
   document.body.appendChild(ov);
-};
-    ov.appendChild(closeBtn);
-    document.body.appendChild(ov);
-    // rebind exclusivity in cloned node
-    setTimeout(()=> {
-      const selects = ov.querySelectorAll('select.map-select');
-      selects.forEach(s => s.addEventListener('change', function(){ /* no-op cloning ensures original will handle */ }));
-    }, 50);
-  }
 
 } catch(e){ console.error('IMPORT JS ERROR', e); alert('Import page JS error: '+e.message); }
 });
@@ -357,4 +348,3 @@ showMappingFullscreen();
   border-color: #868e96;
 }
 </style>
-
