@@ -18,7 +18,13 @@ from export import export_bp
 from pagination import Paginator, sanitize_page_params
 from AllCandidates import all_candidates_bp   # import the blueprint
 from dashboard_routes import dashboard_bp
-from reports import reports_bp
+try:
+    from reports import reports_bp
+except Exception:
+    reports_bp = None
+    import traceback
+    print('Warning: failed to import reports_bp at startup:
+' + traceback.format_exc())
 from recruiter_performance import recruiter_perf_bp
 from datetime import datetime, timedelta
 from flask import jsonify
@@ -42,13 +48,32 @@ mail = Mail(app)
 
 app.secret_key = 'ueueuweujfjdjsdjsdsjdajsdajsdlajsdlajdlajd'  # Change this to a secure secret in production
 csrf = CSRFProtect(app)
+# Safe url_for helper to avoid Jinja BuildError when an endpoint is missing (temporary debugging aid)
+from flask import url_for
+from werkzeug.routing import BuildError
+
+@app.context_processor
+def inject_url_for_safe():
+    def url_for_safe(endpoint, **values):
+        try:
+            return url_for(endpoint, **values)
+        except BuildError:
+            return "#"
+    return dict(url_for_safe=url_for_safe)
+
 
 from flask_wtf.csrf import generate_csrf
 
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 app.register_blueprint(all_candidates_bp)     # register it
 app.register_blueprint(dashboard_bp)
-app.register_blueprint(reports_bp)
+if reports_bp:
+    try:
+        app.register_blueprint(reports_bp)
+    except Exception:
+        app.logger.exception('Failed to register reports_bp')
+else:
+    app.logger.warning('reports_bp not available; reports blueprint not registered')
 app.register_blueprint(recruiter_perf_bp)
 
 @app.context_processor
@@ -1433,10 +1458,30 @@ def reset_user_password(user_id):
 
     return render_template('reset_user_password.html', user_id=user_id)
 
-print('==== ROUTE MAP START ====')
-for rule in app.url_map.iter_rules():
-    print(rule, '->', rule.endpoint)
-print('==== ROUTE MAP END ====')
+
+# --- Startup diagnostics: log route map and reports_bp presence ---
+import logging as _logging, traceback as _traceback
+_start_logger = _logging.getLogger('startup-diagnostics')
+try:
+    _start_logger.info("startup: reports_bp in globals? %s", 'reports_bp' in globals())
+    if 'reports_bp' in globals() and globals().get('reports_bp', None) is not None:
+        try:
+            _start_logger.info("startup: reports_bp repr: %r", globals()['reports_bp'])
+        except Exception:
+            _start_logger.exception("startup: could not repr reports_bp")
+except Exception:
+    _start_logger.exception("startup: pre-check failed")
+
+try:
+    _start_logger.info("startup: Flask URL map (rule -> endpoint):")
+    for rule in app.url_map.iter_rules():
+        _start_logger.info("  %s -> %s", rule.rule, rule.endpoint)
+    _start_logger.info("startup: endpoint 'reports_bp.reports_index' exists? %s",
+                       'reports_bp.reports_index' in {r.endpoint for r in app.url_map.iter_rules()})
+except Exception:
+    _start_logger.exception("startup: failed to iterate url_map")
+# --- End diagnostics ---
+
 
 @app.route('/change_password', methods=['GET', 'POST'])
 def change_password():
