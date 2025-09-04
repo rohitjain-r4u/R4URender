@@ -284,7 +284,7 @@ def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     user_role = session.get('role')
-    return render_template('dashboard.html', role=user_role)
+    return render_template('dashboard.html', role=user_role, reports_bp=reports_bp)
 
 
 @app.route('/login', methods=['GET', 'POST'])
