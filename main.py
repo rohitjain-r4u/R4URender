@@ -1704,18 +1704,7 @@ def candidate_new():
 )
 def import_page_alias(req_id):
     # Reuse the same logic by redirecting to the main wizard route
-    return redirect(url_for("import_wizard", req_id=req_id))
-
-
-
-
-
-
-
-
-
-
-
+    return redirect(url_for("import_candidates_wizard", req_id=req_id))
 
 
 # ===== Legacy Import Routes (upload → map → validate → save) =====
