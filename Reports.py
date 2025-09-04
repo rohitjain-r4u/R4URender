@@ -59,7 +59,12 @@ def _is_admin(): return bool(session.get('is_admin') or session.get('role') == '
 
 @reports_bp.record_once
 def _init(_state):
-    _ensure_table()
+    try:
+        _ensure_table()
+    except Exception as e:
+        import logging
+        logging.exception("reports_bp: _ensure_table failed, skipping")
+)
 
 # ---------------------- Pages ----------------------
 @reports_bp.route("/reports")
