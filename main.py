@@ -1735,3 +1735,17 @@ def api_import_save():
     rows = data.get("rows", [])
     inserted = len(rows)
     return jsonify({"ok": True, "saved": inserted})
+
+
+@app.get("/dbcheck")
+def dbcheck():
+    try:
+        import psycopg2, os
+        url = os.getenv("DATABASE_URL")
+        conn = psycopg2.connect(url, connect_timeout=5, sslmode='require')
+        cur = conn.cursor()
+        cur.execute("SELECT 1;")
+        conn.close()
+        return "DB OK", 200
+    except Exception as e:
+        return str(e), 500
