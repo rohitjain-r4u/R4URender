@@ -1662,27 +1662,45 @@ def import_page_alias(req_id):
 
 @app.route("/api/import/parse", methods=["POST"])
 def api_import_parse():
-    if 'user_id' not in session:
-        return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
-    req_id = request.form.get("requirement_id", type=int)
-    f = request.files.get("file")
-    pasted = request.form.get("text", "")
+    if "file" not in request.files:
+        return jsonify({"ok": False, "error": "No file uploaded"})
+    file = request.files["file"]
+    filename = (file.filename or "").lower()
 
-    if f and f.filename.lower().endswith((".csv", ".tsv", ".txt")):
-        text = f.read().decode("utf-8", errors="ignore")
-        headers, samples, suggested, unmapped, rows = _parse_rows_from_csv(text)
-    elif pasted:
-        headers, samples, suggested, unmapped, rows = _parse_rows_from_csv(pasted)
-    else:
-        return jsonify({"ok": False, "error": "Only CSV/TSV or pasted data supported."})
+    try:
+        import pandas as pd
+        import io
+        if filename.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(file)
+        else:
+            text = file.read().decode("utf-8", errors="ignore")
+            df = pd.read_csv(io.StringIO(text))
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Parse failed: {e}"})
+
+    headers = list(df.columns)
+    samples = {h: [str(x) for x in df[h].dropna().astype(str).head(5).tolist()] for h in headers}
+
+    suggested = {}
+    for h in headers:
+        key = h.strip().lower()
+        if "name" in key:
+            suggested[h] = "candidate_name"
+        elif "email" in key:
+            suggested[h] = "emails"
+        elif "phone" in key or "mobile" in key:
+            suggested[h] = "phones"
+        elif "company" in key:
+            suggested[h] = "current_company"
+        else:
+            suggested[h] = ""
 
     return jsonify({
         "ok": True,
         "headers": headers,
         "samples": samples,
         "suggested_mapping": suggested,
-        "unmapped_headers": unmapped,
-        "rows": rows
+        "system_fields": SHEET_COLUMNS
     })
 
 @app.route("/api/import/validate", methods=["POST"])
