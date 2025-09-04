@@ -1,6 +1,7 @@
 
 # Reports.py — Saved Reports + Graphical Metrics
 from flask import Blueprint, render_template, request, session, redirect, url_for, flash, jsonify, send_file
+import os
 import psycopg2, psycopg2.extras
 import io, csv, json, re as _re
 from datetime import datetime, date, timedelta
@@ -9,17 +10,22 @@ from pagination import Paginator, sanitize_page_params
 from AllCandidates import normalize_list_field, _extract_filters_from_mapping
 
 # ---------------------- DB CONFIG ----------------------
-DB_CONFIG = {
-    'dbname': 'job_portal',
-    'user': 'postgres',
-    'password': 'Happy@9090',
-    'host': 'localhost',
-    'port': 5432
-}
-
+def _load_db_conn_args():
+    """Prefer DATABASE_URL; fallback to DB_* vars."""
+    dsn = os.getenv('DATABASE_URL')
+    if dsn:
+        return {'dsn': dsn}
+    return {
+        'dbname': os.getenv('DB_NAME', 'job_portal'),
+        'user': os.getenv('DB_USER', 'postgres'),
+        'password': os.getenv('DB_PASSWORD', ''),
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'port': int(os.getenv('DB_PORT', '5432')),
+    }
 @contextmanager
 def db_cursor():
-    conn = psycopg2.connect(**DB_CONFIG)
+    args = _load_db_conn_args()
+    conn = psycopg2.connect(args['dsn']) if 'dsn' in args else psycopg2.connect(**args)
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
         yield conn, cur

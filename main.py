@@ -56,14 +56,19 @@ def inject_csrf_token():
     return dict(csrf_token=generate_csrf)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
-# DB config - update for your environment
-DB_CONFIG = {
-    'dbname': 'job_portal',
-    'user': 'postgres',
-    'password': 'Happy@9090',
-    'host': 'localhost'
-}
-
+# DB config - env-driven (supports DATABASE_URL or individual DB_* vars)
+DB_CONFIG = {}
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    DB_CONFIG['dsn'] = DATABASE_URL
+else:
+    DB_CONFIG = {
+        'dbname': os.getenv('DB_NAME', 'job_portal'),
+        'user': os.getenv('DB_USER', 'postgres'),
+        'password': os.getenv('DB_PASSWORD', ''),
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'port': int(os.getenv('DB_PORT', '5432')),
+    }
 from import_routes import import_bp
 app.register_blueprint(import_bp, url_prefix="/candidates/import")
 app.register_blueprint(export_bp)
@@ -81,7 +86,7 @@ def get_db_cursor():
     conn = None
     cur = None
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(DB_CONFIG['dsn']) if 'dsn' in DB_CONFIG else psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         yield conn, cur
     except Exception:
