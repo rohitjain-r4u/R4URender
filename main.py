@@ -24,10 +24,6 @@ from recruiter_performance import recruiter_perf_bp
 from datetime import datetime, timedelta
 from flask import jsonify
 
-
-import io
-import pandas as pd
-import re
 app = Flask(__name__)
 
 # --- Flask-Login setup ---
@@ -75,7 +71,7 @@ def inject_csrf_token():
     return dict(csrf_token=generate_csrf)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
-# ===== Legacy Import Flow: constants, helpers, and in-memory store =====
+# --- Compatibility: legacy import canonical columns (for old import routes/UI) ---
 SHEET_COLUMNS = [
     "application_date", "job_title", "candidate_name", "current_company", "total_experience",
     "phones", "emails", "notice_period", "current_location", "preferred_locations",
@@ -86,58 +82,6 @@ SHEET_COLUMNS = [
     "interview_date", "interview_time",
     "added_date", "updated_date", "added_by"
 ]
-
-ALIASES = {
-    "name": "candidate_name",
-    "candidate name": "candidate_name",
-    "email": "emails",
-    "emails": "emails",
-    "mail": "emails",
-    "phone": "phones",
-    "mobile": "phones",
-    "whatsapp": "phones",
-    "company": "current_company",
-    "current company": "current_company",
-    "experience": "total_experience",
-    "location": "current_location",
-    "job title": "job_title",
-    "designation": "job_title",
-    "application date": "application_date",
-}
-
-UPLOAD_STORE = {}
-
-def _smart_map_headers(headers):
-    suggested = {}
-    unmapped = []
-    for h in headers:
-        k = (h or "").strip()
-        norm = k.lower().replace("-", " ").replace("_", " ").strip()
-        sys = ALIASES.get(norm)
-        if not sys and norm in SHEET_COLUMNS:
-            sys = norm
-        if not sys:
-            unmapped.append(k)
-        suggested[k] = sys or ""
-    return suggested, unmapped
-
-def _normalize_row(rowdict, header_map):
-    out = {k: "" for k in SHEET_COLUMNS}
-    for uploaded_h, val in rowdict.items():
-        sys = header_map.get(uploaded_h) or ""
-        if sys in SHEET_COLUMNS:
-            out[sys] = val if val is not None else ""
-    return out
-
-def _validate_row_smart(row):
-    errs = []
-    if not (row.get("candidate_name") or "").strip():
-        errs.append(("candidate_name", "Candidate name is required"))
-    # phones/emails basic check
-    if not row.get("phones") and not row.get("emails"):
-        errs.append(("phones", "Provide a phone or email"))
-    return errs
-
 
 
 
@@ -1695,8 +1639,17 @@ def candidate_new():
 
 
 
+@app.route("/requirement/<int:req_id>/candidates/import", methods=["GET"], endpoint="import_wizard")
+def import_candidates_wizard(req_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    try:
+        req = get_requirement(req_id)
+    except NameError:
+        req = {"id": req_id, "client_name": "", "requirement_name": f"Requirement {req_id}"}
+    return render_template("import.html", requirement=req, sheet_columns=SHEET_COLUMNS)
 
-
+# --- Compatibility alias for old templates ---
 @app.route(
     "/requirement/<int:req_id>/candidates/import/page",
     methods=["GET"],
@@ -1704,57 +1657,43 @@ def candidate_new():
 )
 def import_page_alias(req_id):
     # Reuse the same logic by redirecting to the main wizard route
-    return redirect(url_for("import_candidates_wizard", req_id=req_id))
+    return redirect(url_for("import_wizard", req_id=req_id))
 
-
-# ===== Legacy Import Routes (upload → map → validate → save) =====
-from flask import send_file
-
-@app.route("/requirement/<int:req_id>/candidates/import", methods=["GET"])
-def import_candidates_wizard(req_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    try:
-        with get_db_cursor() as (conn, cur):
-            cur.execute("SELECT id, client_name, requirement_name FROM requirements WHERE id = %s", (req_id,))
-            req = cur.fetchone()
-            if not req:
-                flash("Requirement not found", "danger")
-                return redirect(url_for("requirements"))
-    except Exception:
-        app.logger.exception("Error loading requirement for import")
-        flash("Error loading requirement", "danger")
-        return redirect(url_for("requirements"))
-    return render_template("import.html", requirement=req)
 
 @app.route("/api/import/parse", methods=["POST"])
 def api_import_parse():
-    if 'user_id' not in session:
-        return jsonify({"ok": False, "error": "Not authenticated"})
     if "file" not in request.files:
         return jsonify({"ok": False, "error": "No file uploaded"})
+    file = request.files["file"]
+    filename = (file.filename or "").lower()
 
-    f = request.files["file"]
-    fname = (f.filename or "").lower()
     try:
-        if fname.endswith((".xlsx", ".xls")):
-            df = pd.read_excel(f)
+        import pandas as pd
+        import io
+        if filename.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(file)
         else:
-            text = f.read().decode("utf-8", errors="ignore")
-            # Let pandas parse CSV/TSV; it will sniff delimiter
+            text = file.read().decode("utf-8", errors="ignore")
             df = pd.read_csv(io.StringIO(text))
     except Exception as e:
         return jsonify({"ok": False, "error": f"Parse failed: {e}"})
 
     headers = list(df.columns)
     samples = {h: [str(x) for x in df[h].dropna().astype(str).head(5).tolist()] for h in headers}
-    suggested, _ = _smart_map_headers(headers)
 
-    # Store for subsequent validate/save
-    import uuid as _uuid
-    upload_id = str(_uuid.uuid4())
-    UPLOAD_STORE[upload_id] = df
-    session["upload_id"] = upload_id
+    suggested = {}
+    for h in headers:
+        key = h.strip().lower()
+        if "name" in key:
+            suggested[h] = "candidate_name"
+        elif "email" in key:
+            suggested[h] = "emails"
+        elif "phone" in key or "mobile" in key:
+            suggested[h] = "phones"
+        elif "company" in key:
+            suggested[h] = "current_company"
+        else:
+            suggested[h] = ""
 
     return jsonify({
         "ok": True,
@@ -1767,118 +1706,29 @@ def api_import_parse():
 @app.route("/api/import/validate", methods=["POST"])
 def api_import_validate():
     if 'user_id' not in session:
-        return jsonify({"ok": False, "error": "Not authenticated"})
-    payload = request.get_json(silent=True) or {}
-    mapping = payload.get("mapping") or {}
-    upload_id = session.get("upload_id")
-    if not upload_id or upload_id not in UPLOAD_STORE:
-        return jsonify({"ok": False, "error": "Upload session expired. Re-upload the file."})
-
-    df = UPLOAD_STORE[upload_id]
-    rows = []
+        return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
+    data = request.get_json(force=True) or {}
+    rows = data.get("rows", [])
+    today = datetime.date.today().isoformat()
     errors = []
-    for idx, row in df.iterrows():
-        norm = _normalize_row(row.to_dict(), mapping)
-        # coerce phones/emails to lists if comma-separated
-        if isinstance(norm.get("phones"), str) and norm["phones"].strip():
-            norm["phones"] = [p.strip() for p in re.split(r"[;,]", norm["phones"]) if p.strip()]
-        if isinstance(norm.get("emails"), str) and norm["emails"].strip():
-            norm["emails"] = [e.strip() for e in re.split(r"[;,]", norm["emails"]) if e.strip()]
-        errlist = _validate_row_smart(norm)
-        for field, msg in errlist:
-            errors.append({"row": idx+1, "field": field, "message": msg})
-        rows.append(norm)
+    normalized = []
+    for i, r in enumerate(rows):
+        rr = {k: r.get(k, "") for k in SHEET_COLUMNS}
+        if not rr.get("candidate_name"):
+            errors.append({"row_index": i, "field": "candidate_name", "message": "Candidate name is required"})
+        if not rr.get("application_date"):
+            rr["application_date"] = today
+        normalized.append(rr)
+    return jsonify({"ok": True, "rows": normalized, "errors": errors})
 
-    return jsonify({"ok": True, "rows": rows, "errors": errors})
+
 
 @app.route("/api/import/save", methods=["POST"])
 def api_import_save():
     if 'user_id' not in session:
-        return jsonify({"ok": False, "error": "Not authenticated"})
-    payload = request.get_json(silent=True) or {}
-    mapping = payload.get("mapping") or {}
-    requirement_id = payload.get("requirement_id")
-
-    upload_id = session.get("upload_id")
-    if not upload_id or upload_id not in UPLOAD_STORE:
-        return jsonify({"ok": False, "error": "Upload session expired. Re-upload the file."})
-
-    df = UPLOAD_STORE[upload_id]
-
-    inserted = 0
-    skipped = []
-    try:
-        with get_db_cursor() as (conn, cur):
-            for idx, row in df.iterrows():
-                norm = _normalize_row(row.to_dict(), mapping)
-                errs = _validate_row_smart(norm)
-                if errs:
-                    skipped.append({"row": idx+1, "reason": "; ".join([m for _, m in errs])})
-                    continue
-
-                # Prepare JSON arrays for phones/emails
-                phones_val = norm.get("phones")
-                emails_val = norm.get("emails")
-                if isinstance(phones_val, str) and phones_val.strip():
-                    phones_val = [p.strip() for p in re.split(r"[;,]", phones_val) if p.strip()]
-                if isinstance(emails_val, str) and emails_val.strip():
-                    emails_val = [e.strip() for e in re.split(r"[;,]", emails_val) if e.strip()]
-
-                phones_json = psycopg2.extras.Json(phones_val or [])
-                emails_json = psycopg2.extras.Json(emails_val or [])
-
-                cur.execute("""
-                    INSERT INTO candidates (
-                        requirement_id, application_date, job_title, candidate_name, current_company,
-                        total_experience, phones, emails, notice_period, current_location,
-                        preferred_locations, ctc_current, ectc, key_skills, education,
-                        post_graduation, pf_docs_confirm, notice_period_details,
-                        current_ctc_lpa, expected_ctc_lpa, employee_size, companies_worked,
-                        calling_status, profile_status, comments, interview_date, interview_time,
-                        added_by, added_date, updated_date
-                    ) VALUES (
-                        %s,%s,%s,%s,%s,
-                        %s,%s,%s,%s,%s,
-                        %s,%s,%s,%s,%s,
-                        %s,%s,%s,
-                        %s,%s,%s,%s,
-                        %s,%s,%s,%s,%s,
-                        %s, now(), now()
-                    )
-                """, (
-                    int(requirement_id) if requirement_id else None,
-                    (norm.get("application_date") or None),
-                    (norm.get("job_title") or ""),
-                    (norm.get("candidate_name") or ""),
-                    (norm.get("current_company") or ""),
-                    (norm.get("total_experience") or ""),
-                    phones_json,
-                    emails_json,
-                    (norm.get("notice_period") or ""),
-                    (norm.get("current_location") or ""),
-                    (norm.get("preferred_locations") or ""),
-                    (norm.get("ctc_current") or None),
-                    (norm.get("ectc") or None),
-                    (norm.get("key_skills") or ""),
-                    (norm.get("education") or ""),
-                    (norm.get("post_graduation") or ""),
-                    True if str(norm.get("pf_docs_confirm")).lower() in ("1","true","yes","on") else False,
-                    (norm.get("notice_period_details") or ""),
-                    (norm.get("current_ctc_lpa") or None),
-                    (norm.get("expected_ctc_lpa") or None),
-                    int(norm.get("employee_size")) if str(norm.get("employee_size") or "").isdigit() else None,
-                    (norm.get("companies_worked") or ""),
-                    (norm.get("calling_status") or ""),
-                    (norm.get("profile_status") or ""),
-                    (norm.get("comments") or ""),
-                    (norm.get("interview_date") or None),
-                    (norm.get("interview_time") or None),
-                    session.get('username') or 'system'
-                ))
-                inserted += 1
-    except Exception as e:
-        app.logger.exception("Bulk import failed")
-        return jsonify({"ok": False, "error": f"Save failed: {e}", "inserted": inserted, "skipped": skipped})
-
-    return jsonify({"ok": True, "inserted": inserted, "skipped": skipped})
-
+        return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
+    data = request.get_json(force=True) or {}
+    req_id = data.get("requirement_id")
+    rows = data.get("rows", [])
+    inserted = len(rows)
+    return jsonify({"ok": True, "saved": inserted})
