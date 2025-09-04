@@ -15,7 +15,14 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 @contextmanager
 def db_cursor():
-    conn = psycopg2.connect(DATABASE_URL)
+    # Skip DB entirely if disabled
+    if os.getenv('DISABLE_DB'):
+        from contextlib import contextmanager
+        @contextmanager
+        def _noop():
+            yield (None, None)
+        return _noop()
+    conn = psycopg2.connect(DATABASE_URL, connect_timeout=5, sslmode='require')
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
         yield conn, cur
@@ -26,7 +33,7 @@ def db_cursor():
 reports_bp = Blueprint("reports_bp", __name__, template_folder="templates")
 
 # ---------------------- Helpers ----------------------
-def _ensure_table():
+def (_ensure_table() if not os.getenv('DISABLE_DB') else None):
     with db_cursor() as (conn, cur):
         cur.execute("""
         CREATE TABLE IF NOT EXISTS saved_reports (
@@ -49,7 +56,7 @@ def _is_admin(): return bool(session.get('is_admin') or session.get('role') == '
 
 @reports_bp.record_once
 def _init(_state):
-    _ensure_table()
+    (_ensure_table() if not os.getenv('DISABLE_DB') else None)
 
 # ---------------------- Pages ----------------------
 @reports_bp.route("/reports")
