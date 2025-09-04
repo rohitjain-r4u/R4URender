@@ -31,6 +31,21 @@ from flask import jsonify
 
 app = Flask(__name__)
 
+
+
+# --- Health check endpoint (for Render/Gunicorn) ---
+@app.get("/healthz")
+def healthz():
+    return "ok", 200
+
+# Optional: if the route ever fails to register, still let /healthz return 200
+@app.errorhandler(404)
+def _health_fallback_404(e):
+    from flask import request
+    if request.path == "/healthz":
+        return "ok", 200
+    return ("Not Found", 404)
+
 from flask_mail import Mail, Message
 
 # Email config using environment variables
@@ -74,6 +89,14 @@ if reports_bp:
         app.logger.exception('Failed to register reports_bp')
 else:
     app.logger.warning('reports_bp not available; reports blueprint not registered')
+    # Fallback: register a dummy endpoint so templates using url_for('reports_bp.reports_index') keep working
+    def _reports_disabled():
+        return "Reports temporarily disabled", 503
+    app.add_url_rule(
+        "/reports",
+        endpoint="reports_bp.reports_index",
+        view_func=_reports_disabled
+    )
 app.register_blueprint(recruiter_perf_bp)
 
 @app.context_processor
