@@ -314,6 +314,11 @@ def login():
     return render_template('login.html')
 
 
+@app.get("/healthz")
+def healthz():
+    return "ok", 200
+
+
 @app.route('/logout')
 def logout():
     session.clear()
