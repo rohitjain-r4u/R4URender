@@ -129,8 +129,8 @@ document.addEventListener('DOMContentLoaded', function(){
     current_mapping = {};
     parsedHeaders.forEach(h => { current_mapping[h] = suggested_mapping[h] || ''; });
     renderMapping();
-    showMappingFullscreen(); // open overlay (makes mapping full-screen)
     showStep(2);
+    showMappingFullscreen(); // open overlay (makes mapping full-screen)
   }
 
   function renderMapping(){
