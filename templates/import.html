@@ -14,70 +14,15 @@
     .map-row .col-samples { width: 40%; }
     .map-row .col-select { width: 28%; }
     .invalid-cell { background: #f8d7da !important; }
-    
-    /* Fullscreen overlay for mapping step */
-    .fullscreen-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(255,255,255,0.98);
-      z-index: 2000;
-      overflow: auto;
-      padding: 24px;
-    }
-    #dropzoneArea {
-      border: 2px dashed #ced4da;
-      padding: 20px;
-      border-radius: 6px;
-      text-align: center;
-      color: #6c757d;
-      cursor: pointer;
-      margin-bottom: 10px;
-    }
-    #dropzoneArea.dragover {
-      background: #f8f9fa;
-      border-color: #868e96;
-    }
-    .btn-close-overlay {
-      position: fixed;
-      right: 18px;
-      top: 18px;
-      z-index: 2001;
-    }
-    .debug-info {
-      font-size: 12px;
-      color: #6c757d;
-      background: #f8f9fa;
-      padding: 8px;
-      border-radius: 4px;
-      margin-top: 10px;
-    }
   </style>
 </head>
 <body>
 <div class="container py-4">
   <h3>Import Candidates</h3>
-  
-  <!-- Debug info panel -->
-  <div class="card mb-3">
-    <div class="card-header" onclick="document.getElementById('debugInfo').style.display = document.getElementById('debugInfo').style.display === 'none' ? 'block' : 'none'" style="cursor: pointer;">
-      Debug Information (Click to toggle)
-    </div>
-    <div id="debugInfo" class="card-body debug-info" style="display: none;">
-      <div id="debugContent"></div>
-    </div>
-  </div>
-  
   <div id="step1" class="card p-3 mb-3">
     <h5>Step 1 — Upload or Paste</h5>
     <div class="mb-2">
-      <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" class="form-control" style="display: none;" />
-      <div id="dropzoneArea">
-        <div><strong>Drag & drop Excel/CSV here</strong></div>
-        <div class="small text-muted">or click to choose file</div>
-      </div>
+      <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" class="form-control" />
       <small class="form-text text-muted">Upload Excel / CSV or paste rows below</small>
     </div>
     <div class="mb-2">
@@ -119,163 +64,76 @@
 </div>
 
 <script>
-// Single DOMContentLoaded event listener to avoid duplicate declarations
+/* Minimal import wizard JS:
+   - parses file input (delegate to backend)
+   - shows mapping UI (dropdowns)
+   - enforces exclusivity (one system field mapped once)
+   - opens mapping overlay (fullscreen) when mapping begins
+*/
+
+/* utility: read CSRF token from meta */
+function getCSRF() {
+  const m = document.querySelector('meta[name="csrf-token"]');
+  return m ? m.getAttribute('content') : '';
+}
+
+/* UI state */
+let parsedHeaders = [];
+let samples = {};
+let suggested_mapping = {};
+let system_fields = [];
+let current_mapping = {}; // sheet header -> system field or ''
+
+// helpers to show steps
+function showStep(n) {
+  document.querySelectorAll('#step1,#step2,#step3,#step4').forEach(el=>el.style.display='none');
+  document.querySelector('#step'+n).style.display='block';
+}
+
+/* parse button behavior */
 document.addEventListener('DOMContentLoaded', function(){
-  // Debug function
-  function debugLog(message) {
-    const debugContent = document.getElementById('debugContent');
-    if (debugContent) {
-      debugContent.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
-    }
-    console.log(message);
-  }
-
-  /* utility: read CSRF token from meta */
-  function getCSRF() {
-    const m = document.querySelector('meta[name="csrf-token"]');
-    return m ? m.getAttribute('content') : '';
-  }
-
-  /* UI state */
-  let parsedHeaders = [];
-  let samples = {};
-  let suggested_mapping = {};
-  let system_fields = [];
-  let current_mapping = {}; // sheet header -> system field or ''
-
-  // helpers to show steps
-  function showStep(n) {
-    document.querySelectorAll('#step1,#step2,#step3,#step4').forEach(el=>el.style.display='none');
-    document.querySelector('#step'+n).style.display='block';
-  }
-
   const btnParse = document.getElementById('btnParse');
   const fileInput = document.getElementById('fileInput');
   const pasteArea = document.getElementById('pasteArea');
   const container = document.getElementById('mappingContainer');
   const mappingStats = document.getElementById('mappingStats');
-  const dropzoneArea = document.getElementById('dropzoneArea');
-
-  debugLog("DOM loaded, initializing...");
-
-  // Setup dropzone functionality
-  dropzoneArea.addEventListener('click', () => fileInput.click());
-  dropzoneArea.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropzoneArea.classList.add('dragover');
-  });
-  dropzoneArea.addEventListener('dragleave', () => dropzoneArea.classList.remove('dragover'));
-  dropzoneArea.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropzoneArea.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    if (files && files[0]) {
-      fileInput.files = files;
-      updateDropzoneText(files[0].name);
-      debugLog("File dropped: " + files[0].name);
-    }
-  });
-
-  fileInput.addEventListener('change', function() {
-    if (this.files && this.files[0]) {
-      updateDropzoneText(this.files[0].name);
-      debugLog("File selected: " + this.files[0].name);
-    }
-  });
-
-  function updateDropzoneText(filename) {
-    dropzoneArea.innerHTML = `
-      <div><strong>${filename}</strong></div>
-      <div class="small text-muted">Ready to parse</div>
-    `;
-  }
 
   btnParse.addEventListener('click', function(){
-    debugLog("Parse button clicked");
-    
     // prefer file upload
     const file = fileInput.files && fileInput.files[0];
     if(file){
-      debugLog("Sending file to server for parsing...");
       const fd = new FormData();
       fd.append('file', file);
-      
-      // Try to detect the correct API endpoint
-      const baseUrl = window.location.origin;
-      const apiUrl = `${baseUrl}/api/import/parse`;
-      debugLog(`Attempting to call API: ${apiUrl}`);
-      
-      fetch(apiUrl, { 
-        method: 'POST', 
-        body: fd, 
-        headers: { 'X-CSRFToken': getCSRF() } 
-      })
-      .then(response => {
-        debugLog(`Server responded with status: ${response.status}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(onParsed)
-      .catch(err => {
-        debugLog('Parse failed: ' + err.message);
-        alert('Parse failed: ' + err.message);
-        
-        // Fallback to client-side parsing for CSV files
-        if (file.name.endsWith('.csv')) {
-          debugLog("Attempting client-side CSV parsing as fallback");
-          const reader = new FileReader();
-          reader.onload = function(e) {
-            parsePastedCSV(e.target.result);
-          };
-          reader.readAsText(file);
-        }
-      });
+      // include requirement id if in page (optional)
+      fetch('/api/import/parse', { method: 'POST', body: fd, headers: { 'X-CSRFToken': getCSRF() } })
+        .then(r=>r.json()).then(onParsed).catch(err=>alert('Parse failed: '+err));
     } else if(pasteArea.value.trim()){
-      debugLog("Parsing pasted content");
+      // send pasted content as a text blob to server (not implemented backend for pasted CSV in compatibility; do simple client-side parse)
       parsePastedCSV(pasteArea.value);
     } else {
-      debugLog("No file or pasted content found");
       alert('Please select a file or paste data.');
     }
   });
 
   document.getElementById('btnClear').addEventListener('click', ()=>{
-    fileInput.value=''; 
-    pasteArea.value='';
-    dropzoneArea.innerHTML = `
-      <div><strong>Drag & drop Excel/CSV here</strong></div>
-      <div class="small text-muted">or click to choose file</div>
-    `;
-    debugLog("Form cleared");
+    fileInput.value=''; pasteArea.value='';
   });
 
   function onParsed(resp){
-    debugLog("Server parsing response received");
-    if(!resp.ok){ 
-      debugLog('Parse error: '+(resp.error||'unknown'));
-      alert('Parse error: '+(resp.error||'unknown')); 
-      return; 
-    }
-    
+    if(!resp.ok){ alert('Parse error: '+(resp.error||'unknown')); return; }
     parsedHeaders = resp.headers || [];
     samples = resp.samples || {};
     suggested_mapping = resp.suggested_mapping || {};
     system_fields = resp.system_fields || [];
-    
-    debugLog(`Parsed ${parsedHeaders.length} headers: ${parsedHeaders.join(', ')}`);
-    
     // init mapping
     current_mapping = {};
     parsedHeaders.forEach(h => { current_mapping[h] = suggested_mapping[h] || ''; });
     renderMapping();
-    showMappingFullscreen();
+    showMappingFullscreen(); // open overlay (makes mapping full-screen)
     showStep(2);
   }
 
   function renderMapping(){
-    debugLog("Rendering column mapping interface");
     container.innerHTML = '';
     parsedHeaders.forEach((h, idx) => {
       const row = document.createElement('div'); row.className='map-row';
@@ -326,85 +184,34 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // preview step
   document.getElementById('btnToPreview').addEventListener('click', function(){
-    debugLog("Validating mapping with server...");
     // collect mapping into payload and call validate
     const mappingPayload = {...current_mapping};
-    
-    const baseUrl = window.location.origin;
-    const apiUrl = `${baseUrl}/api/import/validate`;
-    debugLog(`Calling validation API: ${apiUrl}`);
-    
-    fetch(apiUrl, {
+    // gather raw rows? For now send mapping only, backend parse will re-read file uploaded in session.
+    fetch('/api/import/validate', {
       method: 'POST',
       headers: {'Content-Type':'application/json', 'X-CSRFToken': getCSRF()},
       body: JSON.stringify({ mapping: mappingPayload })
-    })
-    .then(response => {
-      debugLog(`Validation response status: ${response.status}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(resp=>{
-      if(!resp.ok){ 
-        debugLog('Validate error: '+(resp.error||'unknown'));
-        alert('Validate error: '+(resp.error||'unknown')); 
-        return; 
-      }
+    }).then(r=>r.json()).then(resp=>{
+      if(!resp.ok){ alert('Validate error: '+(resp.error||'unknown')); return; }
       showStep(3);
       renderPreview(resp.rows || [], resp.errors || []);
-    })
-    .catch(err=>{
-      debugLog('Validate failed: '+err.message);
-      alert('Validate failed: '+err.message);
-    });
+    }).catch(err=>alert('Validate failed: '+err));
   });
 
   // Back/Save controls
-  document.getElementById('btnBackToUpload').addEventListener('click', ()=> {
-    debugLog("Going back to upload step");
-    showStep(1);
-  });
-  
-  document.getElementById('btnBackToMap').addEventListener('click', ()=> {
-    debugLog("Going back to mapping step");
-    showStep(2);
-  });
-  
+  document.getElementById('btnBackToUpload').addEventListener('click', ()=> showStep(1));
+  document.getElementById('btnBackToMap').addEventListener('click', ()=> showStep(2));
   document.getElementById('btnSaveImport').addEventListener('click', function(){
-    debugLog("Saving import data...");
     const mappingPayload = {...current_mapping};
-    
-    const baseUrl = window.location.origin;
-    const apiUrl = `${baseUrl}/api/import/save`;
-    debugLog(`Calling save API: ${apiUrl}`);
-    
-    fetch(apiUrl, {
+    fetch('/api/import/save', {
       method: 'POST',
       headers: {'Content-Type':'application/json', 'X-CSRFToken': getCSRF()},
       body: JSON.stringify({ requirement_id: null, mapping: mappingPayload })
-    })
-    .then(response => {
-      debugLog(`Save response status: ${response.status}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(resp=>{
-      if(!resp.ok){ 
-        debugLog('Save error: '+(resp.error||'unknown'));
-        alert('Save error: '+(resp.error||'unknown')); 
-        return; 
-      }
+    }).then(r=>r.json()).then(resp=>{
+      if(!resp.ok){ alert('Save error: '+(resp.error||'unknown')); return; }
       showStep(4);
       document.getElementById('importResult').innerHTML = `<div class="alert alert-success">Inserted ${resp.inserted} rows. Skipped ${resp.skipped.length} rows.</div>`;
-    })
-    .catch(err=>{
-      debugLog('Save failed: '+err.message);
-      alert('Save failed: '+err.message);
-    });
+    }).catch(err=>alert('Save failed: '+err));
   });
 
   // simple preview renderer (tabular)
@@ -437,22 +244,14 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // parse pasted CSV fallback (very small parser)
   function parsePastedCSV(text){
-    debugLog("Parsing CSV content client-side");
     const lines = text.trim().split(/\r?\n/).map(l=>l.split('\t'));
-    if(lines.length < 2){ 
-      debugLog("Not enough lines in pasted content");
-      alert('Paste a header row and at least one data row'); 
-      return; 
-    }
-    
+    if(lines.length < 2){ alert('Paste a header row and at least one data row'); return; }
     const headers = lines[0].map(h=>h.trim());
     const samplesLocal = {};
     headers.forEach((h, i) => { samplesLocal[h] = []; });
-    
     for(let r=1; r<Math.min(lines.length, 10); r++){
       lines[r].forEach((c, i) => { if(c && c.trim()) samplesLocal[headers[i]].push(c.trim()); });
     }
-    
     const suggested = {};
     headers.forEach(h => {
       // best-effort mapping heuristic on client
@@ -463,71 +262,81 @@ document.addEventListener('DOMContentLoaded', function(){
       else if(key.includes('phone')||key.includes('mobile')) suggested[h] = 'phones';
       else suggested[h] = '';
     });
-    
-    parsedHeaders = headers; 
-    samples = samplesLocal; 
-    suggested_mapping = suggested; 
-    system_fields = ['candidate_name','job_title','application_date','phones','emails','current_company','total_experience','comments'];
-    current_mapping = {}; 
-    parsedHeaders.forEach(h=> current_mapping[h] = suggested_mapping[h]||'');
-    
-    debugLog(`Client-side parsing found ${parsedHeaders.length} columns: ${parsedHeaders.join(', ')}`);
-    
+    parsedHeaders = headers; samples = samplesLocal; suggested_mapping = suggested; system_fields = ['candidate_name','job_title','application_date','phones','emails','current_company','total_experience','comments'];
+    current_mapping = {}; parsedHeaders.forEach(h=> current_mapping[h] = suggested_mapping[h]||'');
     renderMapping();
     showMappingFullscreen();
     showStep(2);
   }
 
   // Fullscreen overlay helpers (the overlay is created when mapping begins)
-  function showMappingFullscreen() {
-    debugLog("Showing mapping in fullscreen overlay");
+  function showMappingFullscreen(){
     const step2 = document.getElementById('step2');
-    if (!step2) {
-      debugLog("Step2 element not found");
-      return;
-    }
-    
-    // If overlay already open, do nothing
-    if (document.getElementById('mappingFullscreenOverlay')) {
-      debugLog("Overlay already open");
-      return;
-    }
-
-    // Create overlay
-    const ov = document.createElement('div');
-    ov.id = 'mappingFullscreenOverlay';
-    ov.className = 'fullscreen-overlay';
-
-    // placeholder so we can put step2 back later
-    const placeholder = document.createElement('div');
-    placeholder.id = 'step2_placeholder';
-    step2.parentNode.insertBefore(placeholder, step2);
-
-    // move (not clone) the node
-    ov.appendChild(step2);
-    step2.style.display = 'block';
-
-    // Close button
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.textContent = 'Close';
-    closeBtn.className = 'btn btn-secondary btn-close-overlay';
-    closeBtn.addEventListener('click', () => {
-      debugLog("Closing fullscreen overlay");
-      placeholder.parentNode.insertBefore(step2, placeholder);
-      placeholder.remove();
-      ov.remove();
-      closeBtn.remove();
-      step2.style.display = 'block'; // keep visible after closing
-    });
-
+    if(!step2) return;
+    let ov = document.getElementById('mappingFullscreenOverlay');
+    if(ov) return; // already open
+    ov = document.createElement('div'); ov.id='mappingFullscreenOverlay';
+    ov.style.position='fixed'; ov.style.left='0'; ov.style.top='0'; ov.style.width='100vw'; ov.style.height='100vh';
+    ov.style.background='rgba(255,255,255,0.98)'; ov.style.zIndex=2000; ov.style.overflow='auto'; ov.style.padding='20px';
+    const clone = step2.cloneNode(true); clone.id='step2_full';
+    ov.appendChild(clone);
+    const closeBtn = document.createElement('button'); closeBtn.className='btn btn-secondary'; closeBtn.style.position='fixed'; closeBtn.style.right='18px'; closeBtn.style.top='18px'; closeBtn.textContent='Close'; closeBtn.addEventListener('click', ()=>{ ov.remove(); });
+    ov.appendChild(closeBtn);
     document.body.appendChild(ov);
-    document.body.appendChild(closeBtn);
-    debugLog("Fullscreen overlay created and displayed");
+    // rebind exclusivity in cloned node
+    setTimeout(()=> {
+      const selects = ov.querySelectorAll('select.map-select');
+      selects.forEach(s => s.addEventListener('change', function(){ /* no-op cloning ensures original will handle */ }));
+    }, 50);
   }
 
-  debugLog("Initialization complete");
 });
 </script>
+
+<!-- Inserted CSS/JS for drag-drop and fullscreen overlay -->
+<style>
+/* Fullscreen overlay for mapping step (extra styles) */
+.fullscreen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(255,255,255,0.98);
+  z-index: 2000;
+  overflow: auto;
+  padding: 24px;
+}
+#dropzoneArea {
+  border: 2px dashed #ced4da;
+  padding: 20px;
+  border-radius: 6px;
+  text-align: center;
+  color: #6c757d;
+  cursor: pointer;
+}
+#dropzoneArea.dragover {
+  background: #f8f9fa;
+  border-color: #868e96;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // create drop area before file input
+  const fileInput = document.getElementById('fileInput');
+  if(fileInput && fileInput.parentNode){
+    const drop = document.createElement('div'); drop.id='dropzoneArea';
+    drop.innerHTML = '<div><strong>Drag & drop Excel/CSV here</strong><div class="small text-muted">or click to choose file</div></div>';
+    fileInput.parentNode.insertBefore(drop, fileInput);
+    drop.addEventListener('click', ()=> fileInput.click());
+    drop.addEventListener('dragover', (e)=>{ e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', ()=> drop.classList.remove('dragover'));
+    drop.addEventListener('drop', (e)=>{ e.preventDefault(); drop.classList.remove('dragover'); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if(f) fileInput.files = e.dataTransfer.files; });
+    fileInput.addEventListener('change', function(){ if(this.files && this.files[0]) drop.innerHTML = '<div><strong>' + this.files[0].name + '</strong><div class="small text-muted">Ready to parse</div></div>'; });
+  }
+});
+</script>
+
 </body>
 </html>
