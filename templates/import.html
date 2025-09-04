@@ -265,22 +265,56 @@ document.addEventListener('DOMContentLoaded', function(){
     parsedHeaders = headers; samples = samplesLocal; suggested_mapping = suggested; system_fields = ['candidate_name','job_title','application_date','phones','emails','current_company','total_experience','comments'];
     current_mapping = {}; parsedHeaders.forEach(h=> current_mapping[h] = suggested_mapping[h]||'');
     renderMapping();
-    showMappingFullscreen();
-    showStep(2);
+showStep(2);
+showMappingFullscreen();
   }
 
   // Fullscreen overlay helpers (the overlay is created when mapping begins)
-  function showMappingFullscreen(){
-    const step2 = document.getElementById('step2');
-    if(!step2) return;
-    let ov = document.getElementById('mappingFullscreenOverlay');
-    if(ov) return; // already open
-    ov = document.createElement('div'); ov.id='mappingFullscreenOverlay';
-    ov.style.position='fixed'; ov.style.left='0'; ov.style.top='0'; ov.style.width='100vw'; ov.style.height='100vh';
-    ov.style.background='rgba(255,255,255,0.98)'; ov.style.zIndex=2000; ov.style.overflow='auto'; ov.style.padding='20px';
-    const clone = step2.cloneNode(true); clone.id='step2_full';
-    ov.appendChild(clone);
-    const closeBtn = document.createElement('button'); closeBtn.className='btn btn-secondary'; closeBtn.style.position='fixed'; closeBtn.style.right='18px'; closeBtn.style.top='18px'; closeBtn.textContent='Close'; closeBtn.addEventListener('click', ()=>{ ov.remove(); });
+  function showMappingFullscreen() {
+  const step2 = document.getElementById('step2');
+  if (!step2) return;
+  // If overlay already open, do nothing
+  if (document.getElementById('mappingFullscreenOverlay')) return;
+
+  // Create overlay
+  const ov = document.createElement('div');
+  ov.id = 'mappingFullscreenOverlay';
+  Object.assign(ov.style, {
+    position: 'fixed',
+    inset: '0',
+    width: '100vw',
+    height: '100vh',
+    background: 'rgba(255,255,255,0.98)',
+    zIndex: '2000',
+    overflow: 'auto',
+    padding: '20px'
+  });
+
+  // placeholder so we can put step2 back later
+  const placeholder = document.createElement('div');
+  placeholder.id = 'step2_placeholder';
+  step2.parentNode.insertBefore(placeholder, step2);
+
+  // move (not clone) the node
+  ov.appendChild(step2);
+  step2.style.display = 'block';
+
+  // Close button
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.className = 'btn btn-secondary';
+  Object.assign(closeBtn.style, { position: 'fixed', right: '18px', top: '18px' });
+  closeBtn.addEventListener('click', () => {
+    placeholder.parentNode.insertBefore(step2, placeholder);
+    placeholder.remove();
+    ov.remove();
+    step2.style.display = 'block'; // keep visible after closing
+  });
+
+  ov.appendChild(closeBtn);
+  document.body.appendChild(ov);
+});
     ov.appendChild(closeBtn);
     document.body.appendChild(ov);
     // rebind exclusivity in cloned node
