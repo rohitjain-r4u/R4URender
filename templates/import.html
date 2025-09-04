@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Import Candidates (v2.1)</title>
+  <title>Import Candidates</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
@@ -14,6 +14,31 @@
     .map-row .col-samples { width: 40%; }
     .map-row .col-select { width: 28%; }
     .invalid-cell { background: #f8d7da !important; }
+    
+    /* Fullscreen overlay for mapping step */
+    .fullscreen-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(255,255,255,0.98);
+      z-index: 2000;
+      overflow: auto;
+      padding: 24px;
+    }
+    #dropzoneArea {
+      border: 2px dashed #ced4da;
+      padding: 20px;
+      border-radius: 6px;
+      text-align: center;
+      color: #6c757d;
+      cursor: pointer;
+    }
+    #dropzoneArea.dragover {
+      background: #f8f9fa;
+      border-color: #868e96;
+    }
   </style>
 </head>
 <body>
@@ -92,8 +117,6 @@ function showStep(n) {
 
 /* parse button behavior */
 document.addEventListener('DOMContentLoaded', function(){
-  console.log('import page JS loaded: v2.1');
-  try {
   const btnParse = document.getElementById('btnParse');
   const fileInput = document.getElementById('fileInput');
   const pasteArea = document.getElementById('pasteArea');
@@ -118,7 +141,12 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 
   document.getElementById('btnClear').addEventListener('click', ()=>{
-    fileInput.value=''; pasteArea.value='';
+    fileInput.value=''; 
+    pasteArea.value='';
+    const dropzone = document.getElementById('dropzoneArea');
+    if (dropzone) {
+      dropzone.innerHTML = '<div><strong>Drag & drop Excel/CSV here</strong><div class="small text-muted">or click to choose file</div></div>';
+    }
   });
 
   function onParsed(resp){
@@ -267,84 +295,82 @@ document.addEventListener('DOMContentLoaded', function(){
     parsedHeaders = headers; samples = samplesLocal; suggested_mapping = suggested; system_fields = ['candidate_name','job_title','application_date','phones','emails','current_company','total_experience','comments'];
     current_mapping = {}; parsedHeaders.forEach(h=> current_mapping[h] = suggested_mapping[h]||'');
     renderMapping();
-showStep(2);
-showMappingFullscreen();
+    showStep(2);
+    showMappingFullscreen();
   }
 
   // Fullscreen overlay helpers (the overlay is created when mapping begins)
   function showMappingFullscreen() {
-  const step2 = document.getElementById('step2');
-  if (!step2) return;
-  // If overlay already open, do nothing
-  if (document.getElementById('mappingFullscreenOverlay')) return;
+    const step2 = document.getElementById('step2');
+    if (!step2) return;
+    // If overlay already open, do nothing
+    if (document.getElementById('mappingFullscreenOverlay')) return;
 
-  // Create overlay
-  const ov = document.createElement('div');
-  ov.id = 'mappingFullscreenOverlay';
-  Object.assign(ov.style, {
-    position: 'fixed',
-    inset: '0',
-    width: '100vw',
-    height: '100vh',
-    background: 'rgba(255,255,255,0.98)',
-    zIndex: '2000',
-    overflow: 'auto',
-    padding: '20px'
-  });
+    // Create overlay
+    const ov = document.createElement('div');
+    ov.id = 'mappingFullscreenOverlay';
+    Object.assign(ov.style, {
+      position: 'fixed',
+      inset: '0',
+      width: '100vw',
+      height: '100vh',
+      background: 'rgba(255,255,255,0.98)',
+      zIndex: '2000',
+      overflow: 'auto',
+      padding: '20px'
+    });
 
-  // placeholder so we can put step2 back later
-  const placeholder = document.createElement('div');
-  placeholder.id = 'step2_placeholder';
-  step2.parentNode.insertBefore(placeholder, step2);
+    // placeholder so we can put step2 back later
+    const placeholder = document.createElement('div');
+    placeholder.id = 'step2_placeholder';
+    step2.parentNode.insertBefore(placeholder, step2);
 
-  // move (not clone) the node
-  ov.appendChild(step2);
-  step2.style.display = 'block';
+    // move (not clone) the node
+    ov.appendChild(step2);
+    step2.style.display = 'block';
 
-  // Close button
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.textContent = 'Close';
-  closeBtn.className = 'btn btn-secondary';
-  Object.assign(closeBtn.style, { position: 'fixed', right: '18px', top: '18px' });
-  closeBtn.addEventListener('click', () => {
-    placeholder.parentNode.insertBefore(step2, placeholder);
-    placeholder.remove();
-    ov.remove();
-    step2.style.display = 'block'; // keep visible after closing
-  });
+    // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = 'Close';
+    closeBtn.className = 'btn btn-secondary';
+    Object.assign(closeBtn.style, { position: 'fixed', right: '18px', top: '18px' });
+    closeBtn.addEventListener('click', () => {
+      placeholder.parentNode.insertBefore(step2, placeholder);
+      placeholder.remove();
+      ov.remove();
+      step2.style.display = 'block'; // keep visible after closing
+    });
 
-  ov.appendChild(closeBtn);
-  document.body.appendChild(ov);
+    ov.appendChild(closeBtn);
+    document.body.appendChild(ov);
+  }
 
-} catch(e){ console.error('IMPORT JS ERROR', e); alert('Import page JS error: '+e.message); }
+  // create drop area before file input
+  const fileInput = document.getElementById('fileInput');
+  if(fileInput && fileInput.parentNode){
+    const drop = document.createElement('div'); drop.id='dropzoneArea';
+    drop.innerHTML = '<div><strong>Drag & drop Excel/CSV here</strong><div class="small text-muted">or click to choose file</div></div>';
+    fileInput.parentNode.insertBefore(drop, fileInput);
+    drop.addEventListener('click', ()=> fileInput.click());
+    drop.addEventListener('dragover', (e)=>{ e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', ()=> drop.classList.remove('dragover'));
+    drop.addEventListener('drop', (e)=>{ 
+      e.preventDefault(); 
+      drop.classList.remove('dragover'); 
+      const f = e.dataTransfer.files && e.dataTransfer.files[0]; 
+      if(f) {
+        fileInput.files = e.dataTransfer.files; 
+        drop.innerHTML = '<div><strong>' + f.name + '</strong><div class="small text-muted">Ready to parse</div></div>';
+      }
+    });
+    fileInput.addEventListener('change', function(){ 
+      if(this.files && this.files[0]) {
+        drop.innerHTML = '<div><strong>' + this.files[0].name + '</strong><div class="small text-muted">Ready to parse</div></div>'; 
+      }
+    });
+  }
 });
 </script>
-
-<!-- Inserted CSS/JS for drag-drop and fullscreen overlay -->
-<style>
-/* Fullscreen overlay for mapping step (extra styles) */
-.fullscreen-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(255,255,255,0.98);
-  z-index: 2000;
-  overflow: auto;
-  padding: 24px;
-}
-#dropzoneArea {
-  border: 2px dashed #ced4da;
-  padding: 20px;
-  border-radius: 6px;
-  text-align: center;
-  color: #6c757d;
-  cursor: pointer;
-}
-#dropzoneArea.dragover {
-  background: #f8f9fa;
-  border-color: #868e96;
-}
-</style>
+</body>
+</html>
