@@ -30,7 +30,6 @@ from datetime import datetime, timedelta
 from flask import jsonify
 
 app = Flask(__name__)
-app.jinja_env.globals['has_endpoint'] = lambda ep: ep in app.view_functions
 
 from flask_mail import Mail, Message
 
@@ -285,7 +284,7 @@ def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     user_role = session.get('role')
-    return render_template('dashboard.html', role=user_role, reports_bp=reports_bp)
+    return render_template('dashboard.html', role=user_role)
 
 
 @app.route('/login', methods=['GET', 'POST'])
