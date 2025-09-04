@@ -1194,45 +1194,6 @@ def export_candidates(req_id):
 # Bulk Import (Excel + Paste) endpoints
 # =====================
 
-@app.route('/requirement/<int:req_id>/candidates/import/upload', methods=['POST'])
-def import_candidates_upload(req_id):
-    if 'user_id' not in session:
-        return jsonify({'error': 'unauthenticated'}), 401
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file uploaded'}), 400
-        f = request.files['file']
-        filename = f.filename or ''
-        if not filename.lower().endswith('.xlsx'):
-            return jsonify({'error': 'Only .xlsx files are supported'}), 400
-        import openpyxl, io
-        file_bytes = f.read()
-        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-        ws = wb.active
-        headers = [ (c.value if c.value is not None else '') for c in ws[1] ]
-        idx_map = _smart_map_headers(headers)
-
-        rows = []
-        row_errors = {}
-        for i, row in enumerate(ws.iter_rows(min_row=2), start=2):
-            if all((cell.value is None or str(cell.value).strip()=='' ) for cell in row):
-                continue
-            mapped = {}
-            for idx, cell in enumerate(row):
-                key = idx_map.get(idx, f'col_{idx+1}')
-                mapped[key] = cell.value
-            norm = _normalize_row(mapped)
-            errs = _validate_row_smart(norm)
-            if errs:
-                row_errors[i] = errs
-            rows.append(norm)
-        return jsonify({'rows': rows, 'row_errors': row_errors})
-    except Exception as e:
-        app.logger.exception("Upload parse error: %s", e)
-        return jsonify({'error': 'Failed to read Excel'}), 500
-
-
-
 
 @app.route('/delete_requirement/<int:req_id>', methods=['POST'])
 def delete_requirement(req_id):
@@ -1476,6 +1437,221 @@ def change_password():
 
 
 
+
+@app.route('/requirement/<int:req_id>/candidates/paste/preview', methods=['POST'])
+def paste_candidates_preview(req_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'unauthenticated'}), 401
+    payload = request.get_json(silent=True) or {}
+    text = payload.get('text', '')
+    if not str(text).strip():
+        return jsonify({'error': 'No data pasted'}), 400
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return jsonify({'error': 'No rows found'}), 400
+
+    delim = '	' if any('	' in ln for ln in lines) else (',' if any(',' in ln for ln in lines) else '|')
+    header_cells = [c.strip() for c in lines[0].split(delim)]
+    header_map = _smart_map_headers(header_cells)
+    header_match_score = sum(1 for i,_ in enumerate(header_cells) if header_map.get(i,'').strip() in SHEET_COLUMNS)
+    has_header = header_match_score >= max(2, len(header_cells)//2)
+
+    rows = []
+    row_errors = {}
+    start_idx = 1 if has_header else 0
+    for i, ln in enumerate(lines[start_idx:], start=(2 if has_header else 1)):
+        cells = [c.strip() for c in ln.split(delim)]
+        mapped = {}
+        if has_header:
+            for idx, val in enumerate(cells):
+                key = header_map.get(idx, f'col_{idx+1}')
+                mapped[key] = val
+        else:
+            for idx, val in enumerate(cells):
+                mapped[f'col_{idx+1}'] = val
+        norm = _normalize_row(mapped)
+        errs = _validate_row_smart(norm)
+        if errs:
+            row_errors[i] = errs
+        rows.append(norm)
+
+    return jsonify({'rows': rows, 'row_errors': row_errors})
+
+
+
+
+@app.route('/candidate/new', methods=['GET','POST'])
+def candidate_new():
+    """Redirect helper to add_candidate which expects a requirement id (req_id).
+    Call this route with ?req_id=123 otherwise user is redirected to the requirements list.
+    """
+    req_id = request.args.get('req_id')
+    if not req_id:
+        flash('No requirement selected to add candidate. Please open the requirement and click Add Candidate.', 'warning')
+        return redirect(url_for('requirements'))
+    try:
+        return redirect(url_for('add_candidate', req_id=int(req_id)))
+    except Exception:
+        flash('Invalid requirement id', 'danger')
+        return redirect(url_for('requirements'))
+
+
+
+
+
+# API compatibility wrappers for Import Wizard frontend
+
+
+
+
+
+
+
+
+
+
+
+
+
+# === BEGIN: LEGACY IMPORT FLOW (earliest definitions from Req_App.py) ===
+
+ALIASES = {
+    "candidate name": "candidate_name",
+    "name": "candidate_name",
+    "mobile": "phones",
+    "phone": "phones",
+    "email": "emails",
+    "current ctc": "current_ctc_lpa",
+    "expected ctc": "expected_ctc_lpa",
+    "location": "current_location",
+    "application date": "application_date",
+    "job": "job_title",
+}
+
+SHEET_COLUMNS = [
+    "application_date","job_title","candidate_name","current_company","total_experience",
+    "phones","emails","notice_period","current_location","preferred_locations","ctc_current",
+    "ectc","key_skills","education","post_graduation","pf_docs_confirm","notice_period_details",
+    "current_ctc_lpa","expected_ctc_lpa","employee_size","companies_worked",
+    "calling_status","profile_status","comments"
+]
+
+def _smart_map_headers(headers):
+    suggested = {}
+    unmapped = []
+    for h in headers:
+        key = (h or "").strip()
+        kclean = key.lower().replace("-", " ").replace("_", " ").strip()
+        sys = ALIASES.get(kclean)
+        if not sys and kclean in SHEET_COLUMNS:
+            sys = kclean
+        if not sys:
+            unmapped.append(key)
+        suggested[key] = sys or ""
+    return suggested, unmapped
+
+import io, csv, datetime
+from flask import request, jsonify, render_template
+from flask_login import login_required
+
+def _parse_rows_from_csv(text):
+    f = io.StringIO(text)
+    sniffer = csv.Sniffer()
+    try:
+        dialect = sniffer.sniff(text.splitlines()[0])
+    except Exception:
+        dialect = csv.excel
+    reader = csv.DictReader(f, dialect=dialect)
+    headers = reader.fieldnames or []
+    rows_raw = list(reader)
+    samples = {h: [] for h in headers}
+    for r in rows_raw[:5]:
+        for h in headers:
+            v = (r.get(h) or "").strip()
+            if v:
+                samples[h].append(v)
+    suggested, unmapped = _smart_map_headers(headers)
+    mapped = []
+    for r in rows_raw:
+        out = {k: "" for k in SHEET_COLUMNS}
+        for h in headers:
+            sys = suggested.get(h) or ""
+            if sys:
+                out[sys] = (r.get(h) or "").strip()
+        mapped.append(out)
+    return headers, samples, suggested, unmapped, mapped
+
+
+# ---- Prefer old templates for import flow (templates_old first) ----
+try:
+    from jinja2 import ChoiceLoader, FileSystemLoader
+    if hasattr(app, 'jinja_loader'):
+        app.jinja_loader = ChoiceLoader([
+            FileSystemLoader('templates_old'),
+            app.jinja_loader
+        ])
+except Exception as _e:
+    app.logger.warning("Template loader setup skipped: %s", _e)
+
+
+@app.route('/requirement/<int:req_id>/candidates/template.xlsx')
+def download_candidate_template(req_id):
+    from io import BytesIO
+    from flask import send_file
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(SHEET_HEADERS)  # Using the same headers list we defined earlier
+
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    filename = f"candidate_template_req_{req_id}.xlsx"
+    return send_file(
+        bio,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+@app.route('/requirement/<int:req_id>/candidates/import/upload', methods=['POST'])
+def import_candidates_upload(req_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'unauthenticated'}), 401
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        f = request.files['file']
+        filename = f.filename or ''
+        if not filename.lower().endswith('.xlsx'):
+            return jsonify({'error': 'Only .xlsx files are supported'}), 400
+        import openpyxl, io
+        file_bytes = f.read()
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+        ws = wb.active
+        headers = [ (c.value if c.value is not None else '') for c in ws[1] ]
+        idx_map = _smart_map_headers(headers)
+
+        rows = []
+        row_errors = {}
+        for i, row in enumerate(ws.iter_rows(min_row=2), start=2):
+            if all((cell.value is None or str(cell.value).strip()=='' ) for cell in row):
+                continue
+            mapped = {}
+            for idx, cell in enumerate(row):
+                key = idx_map.get(idx, f'col_{idx+1}')
+                mapped[key] = cell.value
+            norm = _normalize_row(mapped)
+            errs = _validate_row_smart(norm)
+            if errs:
+                row_errors[i] = errs
+            rows.append(norm)
+        return jsonify({'rows': rows, 'row_errors': row_errors})
+    except Exception as e:
+        app.logger.exception("Upload parse error: %s", e)
+        return jsonify({'error': 'Failed to read Excel'}), 500
+
 @app.route('/requirement/<int:req_id>/candidates/import/commit', methods=['POST'])
 def import_candidates_commit(req_id):
     if 'user_id' not in session:
@@ -1545,190 +1721,71 @@ def import_candidates_commit(req_id):
         app.logger.exception("Bulk import commit error: %s", e)
         return jsonify({'error': 'Server error while saving'}), 500
 
-
-
-
-@app.route('/requirement/<int:req_id>/candidates/paste/preview', methods=['POST'])
-def paste_candidates_preview(req_id):
-    if 'user_id' not in session:
-        return jsonify({'error': 'unauthenticated'}), 401
-    payload = request.get_json(silent=True) or {}
-    text = payload.get('text', '')
-    if not str(text).strip():
-        return jsonify({'error': 'No data pasted'}), 400
-    lines = [ln for ln in text.splitlines() if ln.strip()]
-    if not lines:
-        return jsonify({'error': 'No rows found'}), 400
-
-    delim = '	' if any('	' in ln for ln in lines) else (',' if any(',' in ln for ln in lines) else '|')
-    header_cells = [c.strip() for c in lines[0].split(delim)]
-    header_map = _smart_map_headers(header_cells)
-    header_match_score = sum(1 for i,_ in enumerate(header_cells) if header_map.get(i,'').strip() in SHEET_COLUMNS)
-    has_header = header_match_score >= max(2, len(header_cells)//2)
-
-    rows = []
-    row_errors = {}
-    start_idx = 1 if has_header else 0
-    for i, ln in enumerate(lines[start_idx:], start=(2 if has_header else 1)):
-        cells = [c.strip() for c in ln.split(delim)]
-        mapped = {}
-        if has_header:
-            for idx, val in enumerate(cells):
-                key = header_map.get(idx, f'col_{idx+1}')
-                mapped[key] = val
-        else:
-            for idx, val in enumerate(cells):
-                mapped[f'col_{idx+1}'] = val
-        norm = _normalize_row(mapped)
-        errs = _validate_row_smart(norm)
-        if errs:
-            row_errors[i] = errs
-        rows.append(norm)
-
-    return jsonify({'rows': rows, 'row_errors': row_errors})
-
-
 @app.route('/requirement/<int:req_id>/candidates/paste/commit', methods=['POST'])
 def paste_candidates_commit(req_id):
     return import_candidates_commit(req_id)
 
-
-
-
-
-@app.route('/requirement/<int:req_id>/candidates/template', methods=['GET'])
-def download_candidate_template(req_id):
-    # Generate an Excel file with canonical headers
-    import io, openpyxl
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Template"
-    headers = ['Candidate Name','Phones','Emails','Job Title','Current Company','Total Experience','Notice Period','Current Location','Preferred Locations','Current CTC','Expected CTC','Key Skills','Education','Post Graduation','PF Docs Confirm','Notice Period Details','Current CTC (LPA)','Expected CTC (LPA)','Employee Size','Companies Worked','Calling Status','Profile Status','Comments']
-    ws.append(headers)
-    mem = io.BytesIO()
-    wb.save(mem)
-    mem.seek(0)
-    return send_file(mem, as_attachment=True, download_name='candidate_template.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-
-
-
-@app.route('/candidate/new', methods=['GET','POST'])
-def candidate_new():
-    """Redirect helper to add_candidate which expects a requirement id (req_id).
-    Call this route with ?req_id=123 otherwise user is redirected to the requirements list.
-    """
-    req_id = request.args.get('req_id')
-    if not req_id:
-        flash('No requirement selected to add candidate. Please open the requirement and click Add Candidate.', 'warning')
-        return redirect(url_for('requirements'))
+@app.route('/api/import/parse', methods=['POST'])
+def api_import_parse():
+    """Compatibility wrapper: parse uploaded file or pasted text and return headers/samples/suggested mapping."""
     try:
-        return redirect(url_for('add_candidate', req_id=int(req_id)))
+        # req_id may be provided in form or args; optional
+        req_id = request.form.get('requirement_id') or request.args.get('requirement_id') or request.form.get('req_id') or request.args.get('req_id')
+        # call existing upload handler if available
+        if 'import_candidates_upload' in globals():
+            try:
+                return import_candidates_upload(int(req_id)) if req_id else import_candidates_upload(None)
+            except Exception:
+                # direct call may not accept None; fall back to a generic error response
+                return jsonify({'ok': False, 'error': 'Parse handler failed on server.'}), 500
+        else:
+            return jsonify({'ok': False, 'error': 'Parse endpoint not implemented on server.'}), 500
     except Exception:
-        flash('Invalid requirement id', 'danger')
-        return redirect(url_for('requirements'))
+        app.logger.exception('api_import_parse error')
+        return jsonify({'ok': False, 'error': 'Server error'}), 500
 
+@app.route('/api/import/validate', methods=['POST'])
+def api_import_validate():
+    """Compatibility wrapper: validate mapped rows. Expects JSON body { rows: [...] }"""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        # If a server-side validate handler exists, try to call it
+        if 'import_candidates_validate' in globals():
+            try:
+                return import_candidates_validate(data)
+            except Exception:
+                return jsonify({'ok': False, 'error': 'Server-side validation failed.'}), 500
+        else:
+            # If not available, attempt basic validation or return not-implemented
+            return jsonify({'ok': False, 'error': 'Validation not implemented on server.'}), 500
+    except Exception:
+        app.logger.exception('api_import_validate error')
+        return jsonify({'ok': False, 'error': 'Server error'}), 500
 
-
-
-
-# API compatibility wrappers for Import Wizard frontend
-
-
-
-
-
+@app.route('/api/import/save', methods=['POST'])
+def api_import_save():
+    """Compatibility wrapper: save validated rows. Expects JSON body { requirement_id, rows }"""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        req_id = data.get('requirement_id') or request.form.get('req_id') or request.args.get('req_id')
+        if 'import_candidates_commit' in globals():
+            try:
+                return import_candidates_commit(int(req_id)) if req_id else import_candidates_commit(None)
+            except Exception:
+                return jsonify({'ok': False, 'error': 'Save handler failed on server.'}), 500
+        else:
+            return jsonify({'ok': False, 'error': 'Save endpoint not implemented on server.'}), 500
+    except Exception:
+        app.logger.exception('api_import_save error')
+        return jsonify({'ok': False, 'error': 'Server error'}), 500
 
 @app.route("/requirement/<int:req_id>/candidates/import", methods=["GET"], endpoint="import_wizard")
+@login_required
 def import_candidates_wizard(req_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
     try:
         req = get_requirement(req_id)
     except NameError:
         req = {"id": req_id, "client_name": "", "requirement_name": f"Requirement {req_id}"}
     return render_template("import.html", requirement=req, sheet_columns=SHEET_COLUMNS)
 
-# --- Compatibility alias for old templates ---
-@app.route(
-    "/requirement/<int:req_id>/candidates/import/page",
-    methods=["GET"],
-    endpoint="import_bp.import_page"
-)
-def import_page_alias(req_id):
-    # Reuse the same logic by redirecting to the main wizard route
-    return redirect(url_for("import_wizard", req_id=req_id))
-
-
-@app.route("/api/import/parse", methods=["POST"])
-def api_import_parse():
-    if "file" not in request.files:
-        return jsonify({"ok": False, "error": "No file uploaded"})
-    file = request.files["file"]
-    filename = (file.filename or "").lower()
-
-    try:
-        import pandas as pd
-        import io
-        if filename.endswith((".xlsx", ".xls")):
-            df = pd.read_excel(file)
-        else:
-            text = file.read().decode("utf-8", errors="ignore")
-            df = pd.read_csv(io.StringIO(text))
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Parse failed: {e}"})
-
-    headers = list(df.columns)
-    samples = {h: [str(x) for x in df[h].dropna().astype(str).head(5).tolist()] for h in headers}
-
-    suggested = {}
-    for h in headers:
-        key = h.strip().lower()
-        if "name" in key:
-            suggested[h] = "candidate_name"
-        elif "email" in key:
-            suggested[h] = "emails"
-        elif "phone" in key or "mobile" in key:
-            suggested[h] = "phones"
-        elif "company" in key:
-            suggested[h] = "current_company"
-        else:
-            suggested[h] = ""
-
-    return jsonify({
-        "ok": True,
-        "headers": headers,
-        "samples": samples,
-        "suggested_mapping": suggested,
-        "system_fields": SHEET_COLUMNS
-    })
-
-@app.route("/api/import/validate", methods=["POST"])
-def api_import_validate():
-    if 'user_id' not in session:
-        return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
-    data = request.get_json(force=True) or {}
-    rows = data.get("rows", [])
-    today = datetime.date.today().isoformat()
-    errors = []
-    normalized = []
-    for i, r in enumerate(rows):
-        rr = {k: r.get(k, "") for k in SHEET_COLUMNS}
-        if not rr.get("candidate_name"):
-            errors.append({"row_index": i, "field": "candidate_name", "message": "Candidate name is required"})
-        if not rr.get("application_date"):
-            rr["application_date"] = today
-        normalized.append(rr)
-    return jsonify({"ok": True, "rows": normalized, "errors": errors})
-
-
-
-@app.route("/api/import/save", methods=["POST"])
-def api_import_save():
-    if 'user_id' not in session:
-        return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
-    data = request.get_json(force=True) or {}
-    req_id = data.get("requirement_id")
-    rows = data.get("rows", [])
-    inserted = len(rows)
-    return jsonify({"ok": True, "saved": inserted})
+# === END: LEGACY IMPORT FLOW ===
