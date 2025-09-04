@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from flask import jsonify
 
 app = Flask(__name__)
+app.jinja_env.globals['has_endpoint'] = lambda ep: ep in app.view_functions
 
 from flask_mail import Mail, Message
 
