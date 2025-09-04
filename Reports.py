@@ -64,7 +64,6 @@ def _init(_state):
     except Exception as e:
         import logging
         logging.exception("reports_bp: _ensure_table failed, skipping")
-)
 
 # ---------------------- Pages ----------------------
 @reports_bp.route("/reports")
