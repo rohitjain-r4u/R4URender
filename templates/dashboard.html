@@ -962,10 +962,14 @@ document.addEventListener('click', async (ev)=>{
       filter.className = 'client-filter';
       filter.innerHTML = `
         <label for="rpClientSelect">Filter by Client:</label>
-        <select id="rpClientSel" class="form-select form-select-sm" style="max-width:240px">
-  <!-- dynamic client options will be injected server-side -->
-  <option value="">-- All clients --</option>
-</select>
+        <select id="rpClientSelect" class="form-select form-select-sm" style="max-width:240px">
+          <option value="">All Clients</option>
+          <option value="Bounteous*Accolite">Bounteous*Accolite</option>
+          <option value="Provar Solution">Provar Solution</option>
+          <option value="Accolite Digital">Accolite Digital</option>
+          <option value="MagillHub">MagillHub</option>
+          <option value="Apexon">Apexon</option>
+        </select>
         <button id="rpClientSearch" class="btn btn-primary btn-sm">Search</button>
       `;
       // Insert at top
