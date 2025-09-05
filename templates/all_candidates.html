@@ -495,8 +495,12 @@ html, body { margin: 0 !important; padding: 0 !important; }
 
   <div class="hdr d-flex justify-content-between align-items-center">
     <h2>All Candidates <small>({{ total }} found)</small></h2>
-    
-</div>
+    <!-- Added by me (under heading) -->
+
+    <div class="actions">
+      <button id="export-btn" class="btn btn-export-all"><i class="bi bi-download"></i> Export</button>
+    </div>
+  </div>
 
   <!-- Toggle under header row -->
   <div class="form-check form-switch mt-2 ms-2" id="addedByMeSwitchWrap">
@@ -903,47 +907,60 @@ document.addEventListener('click', function(e){
 
 
 
-
-// Unified Added-by-me toggle handler: reflect URL param on load and persist by reloading when toggle changes
+// Toggle state hardening: reflect URL param on load and don't revert
 (function(){
   var toggle = document.getElementById('added_by_me_toggle');
   var hidden = document.getElementById('added_by_me_hidden');
 
   function getParam(){
-    try {
-      var u = new URL(window.location.href);
-      return u.searchParams.get('added_by_me');
-    } catch (e) { return null; }
+    var u = new URL(window.location.href);
+    return u.searchParams.get('added_by_me');
   }
   function setParamAndReload(val){
     if (hidden) hidden.value = val;
-    try {
-      var u = new URL(window.location.href);
-      u.searchParams.set('added_by_me', val);
-      u.searchParams.delete('page');
-      window.location = u.toString();
-    } catch (e) {
-      if (hidden) hidden.value = val;
-      var f = document.getElementById('search-form');
-      if (f) f.submit();
-    }
+    var u = new URL(window.location.href);
+    u.searchParams.set('added_by_me', val);
+    u.searchParams.delete('page');
+    window.location = u.toString();
   }
 
   if (toggle){
+    // Initialize from URL param (default '1' if missing)
     var p = getParam();
-    // default to ON (1) unless URL explicitly contains '0'
     if (p === '0') toggle.checked = false;
-    else if (p === '1') toggle.checked = true;
-    else {
-      toggle.checked = (hidden && hidden.value === '1') ? true : true; // default true
-    }
+    else toggle.checked = true;
+
+    // Keep hidden in sync without forcing checked state
     if (hidden) hidden.value = toggle.checked ? '1' : '0';
+
     toggle.addEventListener('change', function(){
       setParamAndReload(this.checked ? '1' : '0');
     });
-  } else {
-    if (hidden && (hidden.value !== '1' && hidden.value !== '0')) hidden.value = '1';
   }
 })();
+
+// Added-by-me toggle: read from URL and persist without reverting
+(function(){
+  var toggle = document.getElementById('added_by_me_toggle');
+  var hidden = document.getElementById('added_by_me_hidden');
+  function param(){
+    var u = new URL(window.location.href);
+    return u.searchParams.get('added_by_me');
+  }
+  function apply(val){
+    if (hidden) hidden.value = val;
+    var u = new URL(window.location.href);
+    u.searchParams.set('added_by_me', val);
+    u.searchParams.delete('page');
+    window.location = u.toString();
+  }
+  if (toggle){
+    var p = param();
+    toggle.checked = (p === '0') ? false : true; // default ON
+    if (hidden) hidden.value = toggle.checked ? '1' : '0';
+    toggle.addEventListener('change', function(){ apply(this.checked ? '1' : '0'); });
+  }
+})();
+
 </script>
 {% endblock %}

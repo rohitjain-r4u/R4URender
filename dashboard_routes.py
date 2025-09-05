@@ -590,31 +590,11 @@ def dashboard_requirement_pipeline_grid():
             sel_attr = " selected" if cn == client_q else ""
             client_options_html.append(f"<option value=\"{val}\"{sel_attr}>{txt or '—'}</option>")
         client_options_html = "".join(client_options_html)
-        # Insert server-rendered client filter
-        out.append(f"""
-  <div class='client-filter'>
-    <label for='rpClientSel' class='me-2'>Filter by Client:</label>
-    <select id='rpClientSel' class='form-select form-select-sm' style='max-width:260px'>
-      {client_options_html}
-    </select>
-  </div>
-""")
-
 
         # --- HTML OUTPUT ---
         out = []
         
         # Wire the change handler (in case the page-level JS didn't run)
-                # Server-rendered client filter (inserts the client_options_html into the modal)
-        out.append(f"""
-  <div class='client-filter'>
-    <label for='rpClientSel' class='me-2'>Filter by Client:</label>
-    <select id='rpClientSel' class='form-select form-select-sm' style='max-width:260px'>
-      {client_options_html}
-    </select>
-  </div>
-""")
-
         out.append("""
 <script>(function(){
   var sel = document.getElementById('rpClientSel');
@@ -782,25 +762,6 @@ def dashboard_requirement_pipeline_table():
     except Exception:
         logger.exception("Error building requirement pipeline table")
         return "<div class='p-3 text-danger'>Server error.</div>", 500
-
-
-@dashboard_bp.route("/active_clients")
-def active_clients():
-    if 'user_id' not in session:
-        return jsonify({'error': 'unauthenticated'}), 401
-    try:
-        with get_db_cursor() as (conn, cur):
-            cur.execute("""
-                SELECT DISTINCT client_name
-                FROM requirements
-                WHERE status = 'Active' AND client_name IS NOT NULL AND client_name <> ''
-                ORDER BY client_name
-            """)
-            rows = [r['client_name'] for r in cur.fetchall()]
-            return jsonify({'clients': rows})
-    except Exception:
-        logger.exception("Error fetching active clients")
-        return jsonify({'error': 'server error'}), 500
 
 
 @dashboard_bp.route('/dashboard_clients')
