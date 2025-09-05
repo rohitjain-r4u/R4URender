@@ -590,12 +590,32 @@ def dashboard_requirement_pipeline_grid():
             sel_attr = " selected" if cn == client_q else ""
             client_options_html.append(f"<option value=\"{val}\"{sel_attr}>{txt or '—'}</option>")
         client_options_html = "".join(client_options_html)
+        # Insert server-rendered client filter
+        out.append(f"""
+  <div class='client-filter'>
+    <label for='rpClientSel' class='me-2'>Filter by Client:</label>
+    <select id='rpClientSel' class='form-select form-select-sm' style='max-width:260px'>
+      {client_options_html}
+    </select>
+  </div>
+""")
+
 
         # --- HTML OUTPUT ---
         out = []
         
         # Wire the change handler (in case the page-level JS didn't run)
-        out.append("""
+                # Server-rendered client filter (inserts the client_options_html into the modal)
+        out.append(f"""
+  <div class='client-filter'>
+    <label for='rpClientSel' class='me-2'>Filter by Client:</label>
+    <select id='rpClientSel' class='form-select form-select-sm' style='max-width:260px'>
+      {client_options_html}
+    </select>
+  </div>
+""")
+
+out.append("""
 <script>(function(){
   var sel = document.getElementById('rpClientSel');
   if(!sel || sel._wired) return;

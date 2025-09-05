@@ -495,11 +495,30 @@ html, body { margin: 0 !important; padding: 0 !important; }
 
   <div class="hdr d-flex justify-content-between align-items-center">
     <h2>All Candidates <small>({{ total }} found)</small></h2>
-    <!-- Added by me (under heading) -->
+    
+<!-- Added-by-me toggle -->
+<div class="form-check form-switch">
+  <input class="form-check-input" type="checkbox" id="addedByMeToggle"
+         {% if added_by_me and added_by_me|lower in ['1','true','on','yes'] %} checked {% endif %}>
+  <label class="form-check-label" for="addedByMeToggle">Added by me</label>
+  <!-- hidden input so searches submit correct value -->
+  <input type="hidden" id="added_by_me" name="added_by_me" value="{{ added_by_me or '1' }}">
+</div>
 
-    <div class="actions">
-      <button id="export-btn" class="btn btn-export-all"><i class="bi bi-download"></i> Export</button>
-    </div>
+<script>
+  // Keep hidden input updated when user toggles the switch
+  (function(){
+    const toggle = document.getElementById('addedByMeToggle');
+    const hidden = document.getElementById('added_by_me');
+    if (!toggle || !hidden) return;
+    toggle.addEventListener('change', function(){
+      hidden.value = toggle.checked ? '1' : '0';
+    });
+    // ensure initial hidden input matches server value
+    hidden.value = "{{ added_by_me or '1' }}";
+  })();
+</script>
+
   </div>
 
   <!-- Toggle under header row -->
