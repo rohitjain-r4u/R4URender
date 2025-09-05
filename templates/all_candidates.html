@@ -496,30 +496,7 @@ html, body { margin: 0 !important; padding: 0 !important; }
   <div class="hdr d-flex justify-content-between align-items-center">
     <h2>All Candidates <small>({{ total }} found)</small></h2>
     
-<!-- Added-by-me toggle -->
-<div class="form-check form-switch">
-  <input class="form-check-input" type="checkbox" id="addedByMeToggle"
-         {% if added_by_me and added_by_me|lower in ['1','true','on','yes'] %} checked {% endif %}>
-  <label class="form-check-label" for="addedByMeToggle">Added by me</label>
-  <!-- hidden input so searches submit correct value -->
-  <input type="hidden" id="added_by_me" name="added_by_me" value="{{ added_by_me or '1' }}">
 </div>
-
-<script>
-  // Keep hidden input updated when user toggles the switch
-  (function(){
-    const toggle = document.getElementById('addedByMeToggle');
-    const hidden = document.getElementById('added_by_me');
-    if (!toggle || !hidden) return;
-    toggle.addEventListener('change', function(){
-      hidden.value = toggle.checked ? '1' : '0';
-    });
-    // ensure initial hidden input matches server value
-    hidden.value = "{{ added_by_me or '1' }}";
-  })();
-</script>
-
-  </div>
 
   <!-- Toggle under header row -->
   <div class="form-check form-switch mt-2 ms-2" id="addedByMeSwitchWrap">
@@ -926,60 +903,47 @@ document.addEventListener('click', function(e){
 
 
 
-// Toggle state hardening: reflect URL param on load and don't revert
+
+// Unified Added-by-me toggle handler: reflect URL param on load and persist by reloading when toggle changes
 (function(){
   var toggle = document.getElementById('added_by_me_toggle');
   var hidden = document.getElementById('added_by_me_hidden');
 
   function getParam(){
-    var u = new URL(window.location.href);
-    return u.searchParams.get('added_by_me');
+    try {
+      var u = new URL(window.location.href);
+      return u.searchParams.get('added_by_me');
+    } catch (e) { return null; }
   }
   function setParamAndReload(val){
     if (hidden) hidden.value = val;
-    var u = new URL(window.location.href);
-    u.searchParams.set('added_by_me', val);
-    u.searchParams.delete('page');
-    window.location = u.toString();
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.set('added_by_me', val);
+      u.searchParams.delete('page');
+      window.location = u.toString();
+    } catch (e) {
+      if (hidden) hidden.value = val;
+      var f = document.getElementById('search-form');
+      if (f) f.submit();
+    }
   }
 
   if (toggle){
-    // Initialize from URL param (default '1' if missing)
     var p = getParam();
+    // default to ON (1) unless URL explicitly contains '0'
     if (p === '0') toggle.checked = false;
-    else toggle.checked = true;
-
-    // Keep hidden in sync without forcing checked state
+    else if (p === '1') toggle.checked = true;
+    else {
+      toggle.checked = (hidden && hidden.value === '1') ? true : true; // default true
+    }
     if (hidden) hidden.value = toggle.checked ? '1' : '0';
-
     toggle.addEventListener('change', function(){
       setParamAndReload(this.checked ? '1' : '0');
     });
+  } else {
+    if (hidden && (hidden.value !== '1' && hidden.value !== '0')) hidden.value = '1';
   }
 })();
-
-// Added-by-me toggle: read from URL and persist without reverting
-(function(){
-  var toggle = document.getElementById('added_by_me_toggle');
-  var hidden = document.getElementById('added_by_me_hidden');
-  function param(){
-    var u = new URL(window.location.href);
-    return u.searchParams.get('added_by_me');
-  }
-  function apply(val){
-    if (hidden) hidden.value = val;
-    var u = new URL(window.location.href);
-    u.searchParams.set('added_by_me', val);
-    u.searchParams.delete('page');
-    window.location = u.toString();
-  }
-  if (toggle){
-    var p = param();
-    toggle.checked = (p === '0') ? false : true; // default ON
-    if (hidden) hidden.value = toggle.checked ? '1' : '0';
-    toggle.addEventListener('change', function(){ apply(this.checked ? '1' : '0'); });
-  }
-})();
-
 </script>
 {% endblock %}
