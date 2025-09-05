@@ -80,8 +80,21 @@ all_candidates_bp = Blueprint('all_candidates_bp', __name__, template_folder='te
 
 
 def _helpers():
-    from main import get_db_cursor  # lazy import to avoid circular import
-    return get_db_cursor
+    try:
+        # Try the newer style: directly import from main.py
+        from main import get_db_cursor
+        return get_db_cursor
+    except ImportError:
+        # Fallback for Render / legacy style
+        import sys
+        app_mod = sys.modules.get('Req_App') or sys.modules.get('__main__')
+        if not app_mod:
+            raise RuntimeError('Req_App or __main__ not found in sys.modules')
+        get_db_cursor = getattr(app_mod, 'get_db_cursor', None)
+        if not get_db_cursor:
+            raise RuntimeError('get_db_cursor not found in Req_App or __main__')
+        return get_db_cursor
+
 
 
 def _extract_filters_from_mapping(getter):

@@ -764,6 +764,25 @@ def dashboard_requirement_pipeline_table():
         return "<div class='p-3 text-danger'>Server error.</div>", 500
 
 
+@dashboard_bp.route("/active_clients")
+def active_clients():
+    if 'user_id' not in session:
+        return jsonify({'error': 'unauthenticated'}), 401
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("""
+                SELECT DISTINCT client_name
+                FROM requirements
+                WHERE status = 'Active' AND client_name IS NOT NULL AND client_name <> ''
+                ORDER BY client_name
+            """)
+            rows = [r['client_name'] for r in cur.fetchall()]
+            return jsonify({'clients': rows})
+    except Exception:
+        logger.exception("Error fetching active clients")
+        return jsonify({'error': 'server error'}), 500
+
+
 @dashboard_bp.route('/dashboard_clients')
 def dashboard_clients():
     if 'user_id' not in session:
