@@ -615,7 +615,7 @@ def dashboard_requirement_pipeline_grid():
   </div>
 """)
 
-out.append("""
+        out.append("""
 <script>(function(){
   var sel = document.getElementById('rpClientSel');
   if(!sel || sel._wired) return;
