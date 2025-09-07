@@ -184,6 +184,58 @@ def dashboard_data_plus():
             """, tuple(base_params))
             r2_select_total = (cur.fetchone() or {}).get('total', 0)
 
+            # --- Added KPI aggregates (robust, parameterized, and recruiter-scoped) ---
+            try:
+                # Build base SQL prefix and param list to reuse
+                sql_prefix = "SELECT COUNT(*) AS total FROM candidates c LEFT JOIN requirements r ON r.id = c.requirement_id "
+                # compute condition prefix: if base_where already includes WHERE, we need to append AND; otherwise start WHERE
+                cond_prefix = (base_where + " AND ") if (base_where and base_where.strip()) else " WHERE "
+
+                # Final stage candidates: match common variants
+                sql = sql_prefix + cond_prefix + "(" + \
+                      "lower(trim(c.profile_status)) IN ('r3 fbp','hr round','r3 scheduled','offered') " + \
+                      "OR c.profile_status ILIKE ANY (ARRAY[%s,%s,%s,%s,%s,%s])" + \
+                      ")"
+                params = list(base_params) + ['%R3 FBP%','%R3-FBP%','%R3_FBP%','%HR Round%','%R3 Scheduled%','%Offered%']
+                cur.execute(sql, tuple(params))
+                final_stage_candidates = (cur.fetchone() or {}).get('total', 0)
+
+                # R3 rejected
+                sql = sql_prefix + cond_prefix + "(" + \
+                      "lower(trim(c.profile_status)) = 'r3 rejected' OR c.profile_status ILIKE %s" + \
+                      ")"
+                params = list(base_params) + ['%R3 Rejected%']
+                cur.execute(sql, tuple(params))
+                r3_rejected = (cur.fetchone() or {}).get('total', 0)
+
+                # Recent FBP: R1/R2/R3 FBP within last 3 days
+                sql = sql_prefix + cond_prefix + "(" + \
+                      "lower(trim(c.profile_status)) IN ('r1 fbp','r2 fbp','r3 fbp') " + \
+                      "OR c.profile_status ILIKE ANY (ARRAY[%s,%s,%s,%s,%s,%s])" + \
+                      ") AND (c.added_date >= (NOW() - INTERVAL '3 days'))"
+                params = list(base_params) + ['%R1 FBP%','%R2 FBP%','%R3 FBP%','%R1-FBP%','%R2-FBP%','%R3-FBP%']
+                cur.execute(sql, tuple(params))
+                recent_fbp = (cur.fetchone() or {}).get('total', 0)
+
+            except Exception as _kpi_err:
+                # ensure variables exist even on failure
+                final_stage_candidates = 0
+                r3_rejected = 0
+                recent_fbp = 0
+                try:
+                    current_app.logger.exception("Error computing dashboard KPIs: %s", _kpi_err)
+                except Exception:
+                    pass
+
+            # add debug log
+            try:
+                current_app.logger.debug("Computed dashboard KPIs: final_stage=%s r3_rejected=%s recent_fbp=%s",
+                                         final_stage_candidates, r3_rejected, recent_fbp)
+            except Exception:
+                pass
+
+
+
             # Candidates per recruiter (all-time)
             cur.execute(f"""
                 SELECT COALESCE(NULLIF(TRIM(c.added_by), ''), 'Unknown') AS username, COUNT(*) AS cnt
@@ -215,6 +267,7 @@ def dashboard_data_plus():
             per_recruiter_cand_yesterday = cur.fetchall() or []
 
             return jsonify({
+
                 'total_requirements': total_req,
                 'status_counts': [dict(r) for r in status_counts],
                 'per_recruiter_requirements': [dict(r) for r in per_recruiter_req],
@@ -223,10 +276,13 @@ def dashboard_data_plus():
                 'interviews_today': interviews_today,
                 'interviews_tomorrow': interviews_tomorrow,
                 'r2_select_total': r2_select_total,
+                'final_stage_candidates': final_stage_candidates,
+                'r3_rejected': r3_rejected,
+                'recent_fbp': recent_fbp,
                 'per_recruiter_candidates': [dict(r) for r in per_recruiter_cand],
                 'per_recruiter_candidates_today': [dict(r) for r in per_recruiter_cand_today],
                 'per_recruiter_candidates_yesterday': [dict(r) for r in per_recruiter_cand_yesterday],
-            })
+})
     except Exception:
         logger.exception("Error preparing extended dashboard data")
         return jsonify({'error': 'server error'}), 500
@@ -487,8 +543,8 @@ def dashboard_requirement_pipeline_grid():
         where = []
         params = []
         # if is_recruiter and me:
-         #   where.append("r.assigned_to ILIKE %s")
-          #  params.append(f"%{me}%")
+        #   where.append("r.assigned_to ILIKE %s")
+        #   params.append(f"%{me}%")
         where.append("r.status = 'Active'")
         if client_q:
             for term in client_q.split():
@@ -588,12 +644,12 @@ def dashboard_requirement_pipeline_grid():
             val = _h(cn)
             txt = _h(cn)
             sel_attr = " selected" if cn == client_q else ""
-            client_options_html.append(f"<option value=\"{val}\"{sel_attr}>{txt or '—'}</option>")
+            client_options_html.append(f'<option value="{val}"{sel_attr}>{txt or "—"}</option>')
         client_options_html = "".join(client_options_html)
 
         # --- HTML OUTPUT ---
         out = []
-        
+
         # Wire the change handler (in case the page-level JS didn't run)
         out.append("""
 <script>(function(){
@@ -618,6 +674,17 @@ def dashboard_requirement_pipeline_grid():
 })();</script>
 """)
 
+        client_filter_html = f"""
+        <div class="client-filter mb-2">
+          <label for="rpClientSelect">Filter by Client:</label>
+          <select id="rpClientSelect" class="form-select form-select-sm" style="max-width:240px">
+            <option value="">All Clients</option>
+            {client_options_html}
+          </select>
+          <button id="rpClientSearch" class="btn btn-primary btn-sm">Search</button>
+        </div>
+        """
+        out.append(client_filter_html)
         out.append("""<div class='table-responsive'>""")
         out.append("""<table class='table table-sm table-bordered align-middle rp-table'>""")
         out.append("""<thead class='table-light'><tr>""")
@@ -645,6 +712,7 @@ def dashboard_requirement_pipeline_grid():
     except Exception:
         logger.exception("Error building requirement pipeline grid")
         return "<div class='p-3 text-danger'>Server error.</div>", 500
+
 @dashboard_bp.route('/dashboard_requirement_pipeline_table')
 def dashboard_requirement_pipeline_table():
     if 'user_id' not in session:

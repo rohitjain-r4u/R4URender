@@ -80,21 +80,8 @@ all_candidates_bp = Blueprint('all_candidates_bp', __name__, template_folder='te
 
 
 def _helpers():
-    try:
-        # Try the newer style: directly import from main.py
-        from main import get_db_cursor
-        return get_db_cursor
-    except ImportError:
-        # Fallback for Render / legacy style
-        import sys
-        app_mod = sys.modules.get('Req_App') or sys.modules.get('__main__')
-        if not app_mod:
-            raise RuntimeError('Req_App or __main__ not found in sys.modules')
-        get_db_cursor = getattr(app_mod, 'get_db_cursor', None)
-        if not get_db_cursor:
-            raise RuntimeError('get_db_cursor not found in Req_App or __main__')
-        return get_db_cursor
-
+    from main import get_db_cursor  # lazy import to avoid circular import
+    return get_db_cursor
 
 
 def _extract_filters_from_mapping(getter):
@@ -138,8 +125,8 @@ def _extract_filters_from_mapping(getter):
 
     # Apply 'Added by me' filter only when enabled and user_id is in session — inserted minimally
     if is_added_by_me and ('user_id' in session):
-        where.append("CAST(c.added_by AS TEXT) = %s")
-        params.append(str(session['user_id']))
+            where.append("c.added_by = %s")
+            params.append(session.get('username'))  # Fixed: use username instead of user_id
     return {
         'where_sql': " AND ".join(where),
         'params': params,
@@ -147,7 +134,8 @@ def _extract_filters_from_mapping(getter):
             'name': name, 'phone': phone, 'email': email, 'location': location,
             'calling_status': calling_status, 'profile_status': profile_status,
             'requirement_id': requirement_id, 'interview_date': interview_date,
-            'key_skills': key_skills_raw
+            'key_skills': key_skills_raw,
+            'added_by_me': added_by_me
         }
     }
 
@@ -222,6 +210,13 @@ def all_candidates():
         args=request.args.to_dict()
     )
 
+        # canonicalize added_by_me to '1' or '0' string for the template
+    added_by_me = filt.get('filters', {}).get('added_by_me', '1')
+    if str(added_by_me).lower() in ('1', 'true', 'yes', 'on'):
+        added_by_me = '1'
+    else:
+        added_by_me = '0'
+
     return render_template(
         'all_candidates.html',
         requirement=None,
@@ -236,10 +231,10 @@ def all_candidates():
         profile_status=filt['filters']['profile_status'],
         requirement_id=filt['filters']['requirement_id'],
         interview_date=filt['filters']['interview_date'],
-        key_skills=filt['filters']['key_skills']
-    ,
-        added_by_me=filt.get('filters', {}).get('added_by_me', '1')
+        key_skills=filt['filters']['key_skills'],
+        added_by_me=added_by_me
     )
+
 
 
 @all_candidates_bp.route('/candidates/requirements.json', methods=['GET'])

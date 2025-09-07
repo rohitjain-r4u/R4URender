@@ -366,9 +366,9 @@ def requirements():
     except Exception:
         page = 1
     try:
-        per_page = int(request.args.get('per_page', 20))
+        per_page = int(request.args.get('per_page', 100))
     except Exception:
-        per_page = 20
+        per_page = 100
 
     sort_by = request.args.get('sort_by', 'added_date')
     sort_dir = request.args.get('sort_dir', 'desc').lower()

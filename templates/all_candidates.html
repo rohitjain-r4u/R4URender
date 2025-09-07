@@ -492,6 +492,25 @@ html, body { margin: 0 !important; padding: 0 !important; }
 .sp2-inline-editor{ position:absolute; z-index:5000; }
 .sp2-inline-editor .card{ background:#fff; border:1px solid var(--border); border-radius:10px; padding:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); width:360px; }
 </style>
+<style>
+/* Robust column-specific rules (avoid nth-child selectors) */
+#candidatesTable td.email-cell { position: relative; padding-right: 56px !important; }
+#candidatesTable td.email-cell .copy-email-btn,
+#candidatesTable td.email-cell .copy-btn {
+  display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  padding: 2px 6px; font-size: 0.7rem; z-index: 5;
+}
+#candidatesTable tr:hover td.email-cell .copy-email-btn,
+#candidatesTable tr:hover td.email-cell .copy-btn { display: inline-block; }
+
+#candidatesTable td.phones-cell { position: relative; padding-right: 56px !important; }
+#candidatesTable td.phones-cell .copy-btn { display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 2px 6px; font-size: 0.7rem; z-index: 5; }
+#candidatesTable tr:hover td.phones-cell .copy-btn { display: inline-block; }
+
+/* Added On column styling */
+#candidatesTable td.added-on-cell { white-space: nowrap; font-size: 0.95em; color: #333; }
+</style>
+
 
   <div class="hdr d-flex justify-content-between align-items-center">
     <h2>All Candidates <small>({{ total }} found)</small></h2>
@@ -587,7 +606,8 @@ html, body { margin: 0 !important; padding: 0 !important; }
           <th>Calling Status</th>
           <th>Profile Status</th>
           <th>Comments</th>
-          <th>Added By</th>
+          <th>Added On</th>
+    <th>Added By</th>
           <th class="actions-col">Actions</th>
         </tr>
       </thead>
@@ -604,12 +624,10 @@ html, body { margin: 0 !important; padding: 0 !important; }
           </td>
           <td><a href="#" class="candidate-link" data-id="{{ c.id }}">{{ c.candidate_name or '-' }}</a></td>
           <td>{{ c.total_experience or '-' }}</td>
-          <td>
-            {{ c.phones | join(', ') if c.phones else '-' }}
+          <td class=\"phones-cell\">{{ c.phones | join(', ') if c.phones else '-' }}
             {% if c.phones %}<button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-copy="{{ c.phones | join(', ') }}"><i class="bi bi-clipboard"></i></button>{% endif %}
           </td>
-          <td>
-            {{ c.emails | join(', ') if c.emails else '-' }}
+          <td class=\"email-cell\">{{ c.emails | join(', ') if c.emails else '-' }}
             {% if c.emails %}<button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-copy="{{ c.emails | join(', ') }}"><i class="bi bi-clipboard"></i></button>{% endif %}
           </td>
           <td>{{ c.notice_period or '-' }}</td>
@@ -617,7 +635,14 @@ html, body { margin: 0 !important; padding: 0 !important; }
           <td>{{ c.calling_status or '-' }}</td>
           <td>{{ c.profile_status or '-' }}</td>
           <td>{{ c.comments or '-' }}</td>
-          <td>{{ c.added_by_name or c.added_by or '—' }}</td>
+          <td class="added-on-cell">
+      {% if c.added_date %}
+        {{ c.added_date.strftime('%Y-%m-%d %H:%M') }}
+      {% else %}
+        -
+      {% endif %}
+    </td>
+<td>{{ c.added_by_name or c.added_by or '—' }}</td>
           <td class="actions-col">
             <button class="btn btn-sm btn-outline-secondary view-candidate" data-id="{{ c.id }}" data-bs-toggle="modal" data-bs-target="#candidateModal"><i class="bi bi-eye"></i></button>
             <a href="{{ url_for('edit_candidate', cand_id=c.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>

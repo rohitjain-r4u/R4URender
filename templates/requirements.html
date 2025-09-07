@@ -1,3 +1,114 @@
+<style>
+/* Quick status button styles */
+#quick-status-links .btn {
+  margin-right: 8px;
+  border-radius: 20px;
+  padding: 6px 14px;
+  min-width: 72px;
+  text-align: center;
+}
+
+/* Improve spacing of the header and controls */
+#quick-status-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* Make action buttons consistent spacing in table */
+.table-action-buttons .btn {
+  margin-right: 8px;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+/* Clear All link styling */
+#clear-filters {
+  cursor: pointer;
+  color: #1a73e8;
+  text-decoration: underline;
+  margin-left: 8px;
+}
+#clear-filters:hover { text-decoration: none; }
+
+/* --- Requirements page UI improvements --- */
+/* Table responsiveness */
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Mark the main table for styles */
+.requirements-table { width: 100%; border-collapse: collapse; }
+
+/* Sticky header */
+.requirements-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--card, #ffffff);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+}
+
+/* Row hover highlight & transition */
+.requirements-table tbody tr {
+  transition: background-color 0.18s ease;
+}
+.requirements-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* Consistent button sizing inside table and quick-status buttons */
+.quick-status .btn, .table-action-buttons .btn, .requirements-table .btn {
+  padding: 6px 10px;
+  min-height: 32px;
+  line-height: 1;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #e2e8f0;
+}
+.status-active { background: #d1fae5; color: #065f46; } /* green */
+.status-hold { background: #fff7c2; color: #92400e; } /* yellow */
+.status-closed { background: #e6e6e6; color: #374151; } /* gray */
+
+/* Filter badges */
+.filter-badges { margin: 8px 0 12px 0; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.filter-badge {
+  background:#eef2ff; color:#3730a3; padding:6px 10px; border-radius:999px; font-size:13px; display:inline-flex; gap:8px; align-items:center;
+  box-shadow: 0 1px 0 rgba(16,24,40,0.03);
+}
+.filter-badge .remove { cursor:pointer; font-weight:700; padding-left:6px; }
+
+/* Sticky actions column */
+.requirements-table .actions-td {
+  position: sticky;
+  right: 0;
+  background: var(--card, #fff);
+  z-index: 4;
+  padding-left:8px;
+  padding-right:8px;
+}
+
+/* Table action buttons wrapper */
+.table-action-buttons { display:inline-flex; gap:8px; align-items:center; }
+
+/* Mobile: ensure table wrapper has padding */
+@media (max-width: 768px) {
+  .table-responsive { padding-bottom: 12px; }
+  .quick-status { flex-wrap:wrap; }
+}
+/* end of UI improvements */
+
+</style>
+
 {% extends "base.html" %}
 {% block content %}
 <div class="rfu-page">
@@ -78,12 +189,80 @@
   .table tbody tr:hover td {
     background: var(--row-hover);
   }
-  </style>
+  
+/* --- Refinements: variables, badge focus, button spacing, hover color --- */
+:root{
+  --req-hover: #f1f5f9; /* default row hover */
+  --primary: #1676ff;
+  --badge-bg: #eef2ff;
+  --badge-color: #3730a3;
+  --btn-min-width: 72px;
+}
+
+/* Row hover tuned to CSS variable */
+.requirements-table tbody tr:hover { background-color: var(--req-hover); }
+
+/* Quick-status buttons: consistent width, flex-basis so they align across browsers */
+.quick-status .btn {
+  min-width: var(--btn-min-width);
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Filter badge focusable and keyboard accessible */
+.filter-badge {
+  outline: none;
+}
+.filter-badge:focus { box-shadow: 0 0 0 3px rgba(22,118,255,0.12); transform: translateY(-1px); }
+.filter-badge .remove { cursor: pointer; }
+.filter-badge .remove:focus { outline: none; box-shadow: 0 0 0 3px rgba(22,118,255,0.12); }
+
+/* badge hover */
+.filter-badge:hover { transform: translateY(-2px); transition: transform .12s ease; }
+
+/* clear-all link visual */
+#clear-filters { color: var(--primary); text-decoration: none; }
+#clear-filters:hover, #clear-filters:focus { text-decoration: underline; }
+
+/* ensure the actions sticky column overlaps correctly on small screens */
+.requirements-table td.actions-td { background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,1)); }
+
+/* small-reset: ensure badges area is visibly announced */
+#filter-badges[aria-live] { min-height: 28px; display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+/* make remove button visually clear */
+.filter-badge .remove { font-weight:700; padding-left:6px; color: #7b1fa2; }
+
+/* focus outline for action buttons */
+.table-action-buttons .btn:focus { box-shadow: 0 0 0 3px rgba(22,118,255,0.12); outline: none; }
+
+/* improve button spacing fallback for older browsers */
+.quick-status .btn, .table-action-buttons .btn { margin-right: 6px; }
+
+/* ensure status-badge contrast improvements */
+.status-badge { color: #0f172a; }
+</style>
 
 
 <div class="container py-2">
   <div class="d-flex justify-content-between align-items-center mb-1">
-    <h2 class="fw-bold">Active Requirements</h2>
+    
+<div class="d-flex align-items-center gap-2 mb-2" id="quick-status-links" class="quick-status">
+  <h2 class="fw-bold me-3" style="margin:0;">
+    {% set display_status = status_filter if status_filter is not none and status_filter != '' else 'Active' %}
+    {{ display_status }} Requirements
+  </h2>
+
+  <div class="btn-group" role="group" aria-label="Quick status filter" style="margin-left:16px;">
+    <a href="{{ url_for('requirements', status='Active') }}" class="btn btn-sm {% if status_filter=='Active' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Active</a>
+    <a href="{{ url_for('requirements', status='Hold') }}" class="btn btn-sm {% if status_filter=='Hold' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Hold</a>
+    <a href="{{ url_for('requirements', status='Closed') }}" class="btn btn-sm {% if status_filter=='Closed' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Closed</a>
+  </div>
+<div id="filter-badges" class="filter-badges" aria-live="polite" role="region"></div>
+
+</div>
+
     <a href="{{ url_for('add_requirement') }}" class="btn btn-darkgreen" style="margin-bottom:10px;">
       <i class="bi bi-plus-lg"></i> Add New Requirement
     </a>
@@ -128,27 +307,19 @@
         Requirement: {{ requirement_filter }}
         <a href="{{ url_for('requirements', client=client_filter or None, requirement=None, status=status_filter or None, assigned_to=assigned_filter or None) }}">&times;</a>
       </span>
-    {% endif %}
-    {% if status_filter %}
-      <span class="badge bg-secondary filter-chip">
-        Status: {{ status_filter }}
-        <a href="{{ url_for('requirements', client=client_filter or None, requirement=requirement_filter or None, status=None, assigned_to=assigned_filter or None) }}">&times;</a>
-      </span>
-    {% endif %}
-    {% if assigned_filter %}
+    {% endif %}{% if assigned_filter %}
       <span class="badge bg-secondary filter-chip">
         Assigned: {{ assigned_filter }}
         <a href="{{ url_for('requirements', client=client_filter or None, requirement=requirement_filter or None, status=status_filter or None, assigned_to=None) }}">&times;</a>
       </span>
     {% endif %}
 
-    {% if client_filter or requirement_filter or status_filter or assigned_filter %}
-      <a href="{{ url_for('requirements') }}" class="ms-2">Clear All</a>
-    {% endif %}
+
   </div>
 
   <div class="table-responsive">
-    <table class="table table-hover align-middle table-bordered">
+    <div class="table-responsive">
+<table class="table table-hover align-middle table-bordered requirements-table">
       <thead class="table-light">
         <tr>
           <th data-sort="added_date">Added Date</th>
@@ -181,12 +352,12 @@
           </td>
           <td>{{ req.assigned_to or '' }}</td>
           <td class="center-btn">
-            <a href="/requirement/{{ req.id }}/candidates" 
+            <span class="table-action-buttons"><a href="/requirement/{{ req.id }}/candidates" 
                class="btn btn-sm btn-darkblue" 
                title="View Candidates">
               <i class="bi bi-people"></i>
             </a>
-          </td>
+          </span></td>
           <td>
             <span class="badge {% if req.status == 'Active' %}bg-success{% elif req.status == 'Hold' %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="font-size:0.75rem;">
               {{ req.status }}
@@ -202,22 +373,111 @@
                  class="btn btn-sm btn-darkblue" aria-label="Edit requirement">
                 <i class="bi bi-pencil"></i>
               </a>
-              <form method="POST" action="{{ url_for('delete_requirement', req_id=req.id) }}" onsubmit="return confirm('Delete this requirement?');" style="display:inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-sm btn-danger" aria-label="Delete requirement">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </form>
+              
             </div>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+</div>
   </div>
 
   {% if total %}
     <div class="small text-muted mt-2">
+
+{% set per_page_safe = (per_page|int if per_page|int > 0 else 1) %}
+{% set total_pages = (total // per_page_safe) + (1 if (total % per_page_safe) != 0 else 0) %}
+{% if total_pages > 1 %}
+<nav aria-label="Requirements pagination" class="mt-3">
+  <ul class="pagination" role="navigation" aria-label="Pagination">
+
+    {# Prev link #}
+    {% if page|int > 1 %}
+      {% set prev = page|int - 1 %}
+      {# build querystring preserving other params but replacing page #}
+      {% set qs = '' %}
+      {% for k, v in request.args.items() %}
+        {% if k != 'page' %}
+          {% if qs == '' %}
+            {% set qs = k ~ '=' ~ v %}
+          {% else %}
+            {% set qs = qs ~ '&' ~ k ~ '=' ~ v %}
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+      {% if qs != '' %}{% set qs = qs ~ '&' %}{% endif %}
+      <li class="page-item">
+        <a class="page-link" href="{{ request.path }}?{{ qs }}page={{ prev }}" aria-label="Previous page" rel="prev">&laquo; Prev</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link" aria-hidden="true">&laquo; Prev</span></li>
+    {% endif %}
+
+    {# page number window #}
+    {% set start = 1 if page|int - 2 < 1 else page|int - 2 %}
+    {% set end = total_pages if page|int + 2 > total_pages else page|int + 2 %}
+
+    {% if start > 1 %}
+      {% set qs = '' %}
+      {% for k, v in request.args.items() %}
+        {% if k != 'page' %}
+          {% if qs == '' %}{% set qs = k ~ '=' ~ v %}{% else %}{% set qs = qs ~ '&' ~ k ~ '=' ~ v %}{% endif %}
+        {% endif %}
+      {% endfor %}
+      {% if qs != '' %}{% set qs = qs ~ '&' %}{% endif %}
+      <li class="page-item"><a class="page-link" href="{{ request.path }}?{{ qs }}page=1">1</a></li>
+      {% if start > 2 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+    {% endif %}
+
+    {% for p in range(start, end + 1) %}
+      {% set qs = '' %}
+      {% for k, v in request.args.items() %}
+        {% if k != 'page' %}
+          {% if qs == '' %}{% set qs = k ~ '=' ~ v %}{% else %}{% set qs = qs ~ '&' ~ k ~ '=' ~ v %}{% endif %}
+        {% endif %}
+      {% endfor %}
+      {% if qs != '' %}{% set qs = qs ~ '&' %}{% endif %}
+
+      {% if p == page|int %}
+        <li class="page-item active" aria-current="page"><span class="page-link">{{ p }}</span></li>
+      {% else %}
+        <li class="page-item"><a class="page-link" href="{{ request.path }}?{{ qs }}page={{ p }}">{{ p }}</a></li>
+      {% endif %}
+    {% endfor %}
+
+    {% if end < total_pages %}
+      {% set qs = '' %}
+      {% for k, v in request.args.items() %}
+        {% if k != 'page' %}
+          {% if qs == '' %}{% set qs = k ~ '=' ~ v %}{% else %}{% set qs = qs ~ '&' ~ k ~ '=' ~ v %}{% endif %}
+        {% endif %}
+      {% endfor %}
+      {% if qs != '' %}{% set qs = qs ~ '&' %}{% endif %}
+      {% if end < total_pages - 1 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+      <li class="page-item"><a class="page-link" href="{{ request.path }}?{{ qs }}page={{ total_pages }}">{{ total_pages }}</a></li>
+    {% endif %}
+
+    {# Next link #}
+    {% if page|int < total_pages %}
+      {% set nxt = page|int + 1 %}
+      {% set qs = '' %}
+      {% for k, v in request.args.items() %}
+        {% if k != 'page' %}
+          {% if qs == '' %}{% set qs = k ~ '=' ~ v %}{% else %}{% set qs = qs ~ '&' ~ k ~ '=' ~ v %}{% endif %}
+        {% endif %}
+      {% endfor %}
+      {% if qs != '' %}{% set qs = qs ~ '&' %}{% endif %}
+      <li class="page-item">
+        <a class="page-link" href="{{ request.path }}?{{ qs }}page={{ nxt }}" aria-label="Next page" rel="next">Next &raquo;</a>
+      </li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link" aria-hidden="true">Next &raquo;</span></li>
+    {% endif %}
+
+  </ul>
+</nav>
+{% endif %}
       Showing page {{ page }} — total results: {{ total }}
     </div>
   {% endif %}
@@ -240,38 +500,161 @@
 </div>
 {% endfor %}
 
+
 {% block scripts %}
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    // AJAX load partial into modal
-    document.querySelectorAll('.modal').forEach(function(modal) {
-      modal.addEventListener('show.bs.modal', function() {
+document.addEventListener('DOMContentLoaded', function() {
+  // Helper to check if status param exists
+  function hasStatusParam() {
+    try {
+      var u = new URL(window.location.href);
+      return u.searchParams.has('status');
+    } catch (e) {
+      return (window.location.search.indexOf('status=') !== -1);
+    }
+  }
+
+  // If status param is absent, default to Active (client-side)
+  if (!hasStatusParam()) {
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.set('status', 'Active');
+      // replace to avoid polluting history
+      window.location.replace(u.pathname + (u.search ? '?' + u.searchParams.toString() : ''));
+      return;
+    } catch (e) {
+      var sep = window.location.search ? '&' : '?';
+      window.location.replace(window.location.pathname + window.location.search + sep + 'status=Active');
+      return;
+    }
+  }
+
+  // Add titles and aria-labels for common action buttons (static fallback)
+  try {
+    document.querySelectorAll('.table-action-buttons a, .table-action-buttons button').forEach(function(el) {
+      if (!el.getAttribute('title')) {
+        if (el.querySelector && el.querySelector('i.bi-people')) {
+          el.setAttribute('title', 'View Candidates');
+          el.setAttribute('aria-label', 'View Candidates');
+        } else if (el.querySelector && el.querySelector('i.bi-pencil')) {
+          el.setAttribute('title', 'Edit Requirement');
+          el.setAttribute('aria-label', 'Edit Requirement');
+        } else if (el.querySelector && el.querySelector('i.bi-trash')) {
+          el.setAttribute('title', 'Delete Requirement');
+          el.setAttribute('aria-label', 'Delete Requirement');
+        }
+      }
+    });
+  } catch (e){}
+
+  // Render filter badges from URL params; make them keyboard accessible and announce changes
+  try {
+    var fb = document.getElementById('filter-badges');
+    if (fb) {
+      fb.setAttribute('aria-live', 'polite');
+      fb.setAttribute('role', 'status');
+      // clear existing
+      fb.innerHTML = '';
+      var url = new URL(window.location.href);
+      var params = Array.from(url.searchParams.entries());
+      var skip = ['page'];
+      params.forEach(function(kv) {
+        var k = kv[0], v = kv[1];
+        if (skip.indexOf(k) === -1 && v !== '') {
+          var badge = document.createElement('button'); // make focusable
+          badge.className = 'filter-badge';
+          badge.setAttribute('data-param', k);
+          badge.setAttribute('data-value', v);
+          badge.setAttribute('type', 'button');
+          badge.setAttribute('title', 'Remove filter ' + k + ': ' + v);
+          badge.innerHTML = '<strong>' + k.charAt(0).toUpperCase() + k.slice(1) + ':</strong> ' + v + ' <span class=\"remove\" aria-hidden=\"true\">&times;</span>';
+          // keyboard interaction
+          badge.addEventListener('keydown', function(ev){
+            if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+              ev.preventDefault();
+              removeFilterAndReload(k);
+            }
+          });
+          // click interaction
+          badge.addEventListener('click', function(e){
+            e.preventDefault();
+            removeFilterAndReload(k);
+          });
+          fb.appendChild(badge);
+        }
+      });
+    }
+  } catch(e){ console && console.log('badge-render-err', e); }
+
+  function removeFilterAndReload(key) {
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.delete(key);
+      // after removing, reload the page; if no status remains, the default-to-active logic will run and redirect to status=Active
+      var s = u.searchParams.toString();
+      window.location.href = u.pathname + (s ? '?' + s : '');
+    } catch (err) {
+      var loc = window.location.pathname;
+      window.location.href = loc;
+    }
+  }
+
+  // Clear All button behavior: fade badges then remove status and page and reload
+  try {
+    var clear = document.getElementById('clear-filters');
+    if (clear) {
+      clear.addEventListener('click', function(e) {
+        e.preventDefault();
+        var fb = document.getElementById('filter-badges');
+        if (fb) {
+          fb.style.transition = 'opacity 0.18s ease';
+          fb.style.opacity = '0';
+          setTimeout(function() {
+            try {
+              var url2 = new URL(window.location.href);
+              url2.searchParams.delete('status');
+              url2.searchParams.delete('page');
+              var s2 = url2.searchParams.toString();
+              window.location.href = url2.pathname + (s2 ? '?' + s2 : '');
+            } catch (err) {
+              window.location.href = window.location.pathname;
+            }
+          }, 150);
+        } else {
+          try {
+            var url3 = new URL(window.location.href);
+            url3.searchParams.delete('status');
+            url3.searchParams.delete('page');
+            var s3 = url3.searchParams.toString();
+            window.location.href = url3.pathname + (s3 ? '?' + s3 : '');
+          } catch(e){ window.location.href = window.location.pathname; }
+        }
+      });
+    }
+  } catch(e){}
+
+  // Ensure action td have actions-td class (sticky) and add focus outline for keyboard users
+  try {
+    document.querySelectorAll('td').forEach(function(td){
+      if (td.querySelector && td.querySelector('.table-action-buttons')) {
+        td.classList.add('actions-td');
+      }
+    });
+  } catch(e){}
+
+  // NEW CODE: Handle modal show events to fetch requirement details
+  var detailModals = document.querySelectorAll('.modal[id^="detailModal"]');
+  detailModals.forEach(function(modal) {
+    modal.addEventListener('show.bs.modal', function() {
         var reqId = modal.id.replace('detailModal','');
         fetch('/requirement_detail/' + reqId, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
           .then(r => { if (!r.ok) throw new Error('Network'); return r.text(); })
           .then(html => { modal.querySelector('.modal-body').innerHTML = html; })
           .catch(() => { modal.querySelector('.modal-body').innerHTML = '<div class="text-danger">Error loading details</div>'; });
-      });
-    });
-
-    // Click-to-sort on headers
-    document.querySelectorAll('th[data-sort]').forEach(function(th) {
-      th.addEventListener('click', function() {
-        var sortBy = th.getAttribute('data-sort');
-        var url = new URL(window.location.href);
-        var params = url.searchParams;
-        var current = params.get('sort_by') || 'added_date';
-        var dir = (params.get('sort_dir') || 'desc').toLowerCase();
-        if (current === sortBy) dir = (dir === 'desc') ? 'asc' : 'desc';
-        else dir = 'desc';
-        params.set('sort_by', sortBy);
-        params.set('sort_dir', dir);
-        url.search = params.toString();
-        window.location = url.toString();
-      });
     });
   });
+});
 </script>
-</div>
 {% endblock %}
+
 {% endblock %}
