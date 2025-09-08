@@ -324,6 +324,7 @@
         <tr>
           <th data-sort="added_date">Added Date</th>
           <th data-sort="client_name">Client</th>
+          <th data-sort="client_poc">Client POC</th>
           <th data-sort="requirement_name">Requirement</th>
           <th data-sort="experience">Experience</th>
           <th>Locations</th>
@@ -341,6 +342,7 @@
         <tr id="req-row-{{ req.id }}">
           <td>{{ req.added_date.strftime('%Y-%m-%d') if req.added_date else 'Not recorded' }}</td>
           <td>{{ req.client_name }}</td>
+          <td>{{ req.client_poc or "" }}</td>
           <td>{{ req.requirement_name }}</td>
           <td>{{ req.experience }}</td>
           <td>{{ req.job_locations }}</td>

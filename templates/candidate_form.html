@@ -25,45 +25,45 @@
       <div class="col-md-3">
         <label class="form-label">Date of application</label>
         <input type="date" name="application_date" class="form-control"
-       value="{{ data.application_date or (now().date() if false else '') }}"
+       value="{{ data.application_date or (candidate.application_date.strftime('%Y-%m-%d') if candidate and candidate.application_date else '') or '' }}"
        onfocus="if(!this.value){ this.value = new Date().toISOString().slice(0,10); }">
       </div>
 
       <div class="col-md-5">
         <label class="form-label">Job Title</label>
-        <input type="text" name="job_title" class="form-control" value="{{ data.job_title or '' }}">
+        <input type="text" name="job_title" class="form-control" value="{{ data.job_title or candidate.job_title or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Candidate Name *</label>
-        <input type="text" name="candidate_name" class="form-control" required value="{{ data.candidate_name or '' }}">
+        <input type="text" name="candidate_name" class="form-control" required value="{{ data.candidate_name or candidate.candidate_name or '' }}">
       </div>
 
       <div class="col-md-6">
         <label class="form-label">Current Company</label>
-        <input type="text" name="current_company" class="form-control" value="{{ data.current_company or '' }}">
+        <input type="text" name="current_company" class="form-control" value="{{ data.current_company or candidate.current_company or '' }}">
       </div>
 
       <div class="col-md-3">
         <label class="form-label">Total Experience</label>
-        <input type="text" name="total_experience" class="form-control" value="{{ data.total_experience or '' }}">
+        <input type="text" name="total_experience" class="form-control" value="{{ data.total_experience or candidate.total_experience or '' }}">
       </div>
 
       <!-- Phones -->
       <div class="col-12">
         <label class="form-label">Phone Number(s)</label>
         <div id="phones-wrapper" class="multi-input">
-          {% set phones = data.phones if data.phones is defined else (candidate.phones if candidate else []) %}
+          {% set phones = data.phones if data and (data.phones is defined) else (candidate.phones if candidate else []) %}
           {% if phones %}
             {% for p in phones %}
               <div class="input-row phone-row">
-                <input type="text" name="phones" class="form-control" value="{{ p }}">
+                <input type="text" name="phones[]" class="form-control" value="{{ p }}">
                 <button type="button" class="btn btn-outline-danger remove-phone">Remove</button>
               </div>
             {% endfor %}
           {% else %}
             <div class="input-row phone-row">
-              <input type="text" name="phones" class="form-control" value="">
+              <input type="text" name="phones[]" class="form-control" value="">
               <button type="button" class="btn btn-outline-danger remove-phone">Remove</button>
             </div>
           {% endif %}
@@ -75,17 +75,17 @@
       <div class="col-12">
         <label class="form-label">Email ID(s)</label>
         <div id="emails-wrapper" class="multi-input">
-          {% set emails = data.emails if data.emails is defined else (candidate.emails if candidate else []) %}
+          {% set emails = data.emails if data and (data.emails is defined) else (candidate.emails if candidate else []) %}
           {% if emails %}
             {% for e in emails %}
               <div class="input-row email-row">
-                <input type="email" name="emails" class="form-control" value="{{ e }}">
+                <input type="email" name="emails[]" class="form-control" value="{{ e }}">
                 <button type="button" class="btn btn-outline-danger remove-email">Remove</button>
               </div>
             {% endfor %}
           {% else %}
             <div class="input-row email-row">
-              <input type="email" name="emails" class="form-control" value="">
+              <input type="email" name="emails[]" class="form-control" value="">
               <button type="button" class="btn btn-outline-danger remove-email">Remove</button>
             </div>
           {% endif %}
@@ -95,86 +95,86 @@
 
       <div class="col-md-4">
         <label class="form-label">Notice Period</label>
-        <input type="text" name="notice_period" class="form-control" value="{{ data.notice_period or '' }}">
+        <input type="text" name="notice_period" class="form-control" value="{{ data.notice_period or candidate.notice_period or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Current Location</label>
-        <input type="text" name="current_location" class="form-control" value="{{ data.current_location or '' }}">
+        <input type="text" name="current_location" class="form-control" value="{{ data.current_location or candidate.current_location or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Preferred Locations</label>
-        <input type="text" name="preferred_locations" class="form-control" value="{{ data.preferred_locations or '' }}">
+        <input type="text" name="preferred_locations" class="form-control" value="{{ data.preferred_locations or candidate.preferred_locations or '' }}">
       </div>
 
       <div class="col-md-3">
         <label class="form-label">CTC (Current)</label>
-        <input type="number" step="0.01" name="ctc_current" class="form-control" value="{{ data.ctc_current or '' }}">
+        <input type="number" step="0.01" name="ctc_current" class="form-control" value="{{ data.ctc_current or candidate.ctc_current or '' }}">
       </div>
       <div class="col-md-3">
         <label class="form-label">ECTC (Expected)</label>
-        <input type="number" step="0.01" name="ectc" class="form-control" value="{{ data.ectc or '' }}">
+        <input type="number" step="0.01" name="ectc" class="form-control" value="{{ data.ectc or candidate.ectc or '' }}">
       </div>
 
       <div class="col-md-6">
         <label class="form-label">Key Skills</label>
-        <input type="text" name="key_skills" class="form-control" value="{{ data.key_skills or '' }}">
+        <input type="text" name="key_skills" class="form-control" value="{{ data.key_skills or candidate.key_skills or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Education</label>
-        <input type="text" name="education" class="form-control" value="{{ data.education or '' }}">
+        <input type="text" name="education" class="form-control" value="{{ data.education or candidate.education or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Post Graduation Degree</label>
-        <input type="text" name="post_graduation" class="form-control" value="{{ data.post_graduation or '' }}">
+        <input type="text" name="post_graduation" class="form-control" value="{{ data.post_graduation or candidate.post_graduation or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">PF & Docs Confirmation</label>
         <select name="pf_docs_confirm" class="form-select">
           <option value="">Select</option>
-          <option value="1" {% if data.pf_docs_confirm %}selected{% endif %}>Yes</option>
-          <option value="0" {% if not data.pf_docs_confirm %}selected{% endif %}>No</option>
+          <option value="1" {% if (data.pf_docs_confirm is defined and data.pf_docs_confirm == '1') or (candidate and (candidate.pf_docs_confirm == 1 or candidate.pf_docs_confirm == '1' or candidate.pf_docs_confirm is true)) %}selected{% endif %}>Yes</option>
+          <option value="0" {% if (data.pf_docs_confirm is defined and data.pf_docs_confirm == '0') or (candidate and (candidate.pf_docs_confirm == 0 or candidate.pf_docs_confirm == '0' or candidate.pf_docs_confirm is false)) %}selected{% endif %}>No</option>
         </select>
       </div>
 
       <div class="col-12">
         <label class="form-label">Offer Details</label>
-        <textarea name="notice_period_details" class="form-control" rows="2">{{ data.notice_period_details or '' }}</textarea>
+        <textarea name="notice_period_details" class="form-control" rows="2">{{ data.notice_period_details or candidate.notice_period_details or '' }}</textarea>
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Current CTC in LPA</label>
-        <input type="number" step="0.01" name="current_ctc_lpa" class="form-control" value="{{ data.current_ctc_lpa or '' }}">
+        <input type="number" step="0.01" name="current_ctc_lpa" class="form-control" value="{{ data.current_ctc_lpa or candidate.current_ctc_lpa or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Expected CTC in LPA</label>
-        <input type="number" step="0.01" name="expected_ctc_lpa" class="form-control" value="{{ data.expected_ctc_lpa or '' }}">
+        <input type="number" step="0.01" name="expected_ctc_lpa" class="form-control" value="{{ data.expected_ctc_lpa or candidate.expected_ctc_lpa or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Employee Size (current company)</label>
-        <input type="number" name="employee_size" class="form-control" value="{{ data.employee_size or '' }}">
+        <input type="number" name="employee_size" class="form-control" value="{{ data.employee_size or candidate.employee_size or '' }}">
       </div>
 
       <div class="col-12">
         <label class="form-label">Companies Worked With Till Now</label>
-        <input type="text" name="companies_worked" class="form-control" value="{{ data.companies_worked or '' }}">
+        <input type="text" name="companies_worked" class="form-control" value="{{ data.companies_worked or candidate.companies_worked or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Calling Status</label>
         <select name="calling_status" class="form-select">
   <option value="">-- Select --</option>
-  <option value="Screen Select" {% if data.calling_status=='Screen Select' %}selected{% endif %}>Screen Select</option>
-  <option value="Shared With Client" {% if data.calling_status=='Shared With Client' %}selected{% endif %}>Shared With Client</option>
-  <option value="Not interested" {% if data.calling_status=='Not interested' %}selected{% endif %}>Not interested</option>
-  <option value="Not Reachable" {% if data.calling_status=='Not Reachable' %}selected{% endif %}>Not Reachable</option>
-  <option value="Rejected" {% if data.calling_status=='Rejected' %}selected{% endif %}>Rejected</option>
+  <option value="Screen Select" {% if (data.calling_status is defined and data.calling_status=='Screen Select') or (candidate and candidate.calling_status=='Screen Select') %}selected{% endif %}>Screen Select</option>
+  <option value="Shared With Client" {% if (data.calling_status is defined and data.calling_status=='Shared With Client') or (candidate and candidate.calling_status=='Shared With Client') %}selected{% endif %}>Shared With Client</option>
+  <option value="Not interested" {% if (data.calling_status is defined and data.calling_status=='Not interested') or (candidate and candidate.calling_status=='Not interested') %}selected{% endif %}>Not interested</option>
+  <option value="Not Reachable" {% if (data.calling_status is defined and data.calling_status=='Not Reachable') or (candidate and candidate.calling_status=='Not Reachable') %}selected{% endif %}>Not Reachable</option>
+  <option value="Rejected" {% if (data.calling_status is defined and data.calling_status=='Rejected') or (candidate and candidate.calling_status=='Rejected') %}selected{% endif %}>Rejected</option>
 </select>
       </div>
 
@@ -182,30 +182,30 @@
         <label class="form-label">Profile Status</label>
         <select name="profile_status" class="form-select">
   <option value="">-- Select --</option>
-  <option value="Profile shared with client" {% if data.profile_status=='Profile shared with client' %}selected{% endif %}>Profile shared with client</option>
-  <option value="Review Pending by client" {% if data.profile_status=='Review Pending by client' %}selected{% endif %}>Review Pending by client</option>
-  <option value="R2 Pending" {% if data.profile_status=='R2 Pending' %}selected{% endif %}>R2 Pending</option>
-  <option value="R3 Pending" {% if data.profile_status=='R3 Pending' %}selected{% endif %}>R3 Pending</option>
-  <option value="R1 to be schedule" {% if data.profile_status=='R1 to be schedule' %}selected{% endif %}>R1 to be schedule</option>
-  <option value="R2 scheduled" {% if data.profile_status=='R2 scheduled' %}selected{% endif %}>R2 scheduled</option>
-  <option value="R3 scheduled" {% if data.profile_status=='R3 scheduled' %}selected{% endif %}>R3 scheduled</option>
-  <option value="R1 scheduled" {% if data.profile_status=='R1 scheduled' %}selected{% endif %}>R1 scheduled</option>
-  <option value="R1 FBP" {% if data.profile_status=='R1 FBP' %}selected{% endif %}>R1 FBP</option>
-  <option value="R2 FBP" {% if data.profile_status=='R2 FBP' %}selected{% endif %}>R2 FBP</option>
-  <option value="R3 FBP" {% if data.profile_status=='R3 FBP' %}selected{% endif %}>R3 FBP</option>
-  <option value="HR Round" {% if data.profile_status=='HR Round' %}selected{% endif %}>HR Round</option>
-  <option value="Offered" {% if data.profile_status=='Offered' %}selected{% endif %}>Offered</option>
-  <option value="R2 Rejected" {% if data.profile_status=='R2 Rejected' %}selected{% endif %}>R2 Rejected</option>
-  <option value="R3 Rejected" {% if data.profile_status=='R3 Rejected' %}selected{% endif %}>R3 Rejected</option>
-  <option value="R1 Rejected" {% if data.profile_status=='R1 Rejected' %}selected{% endif %}>R1 Rejected</option>
+  <option value="Profile shared with client" {% if (data.profile_status is defined and data.profile_status=='Profile shared with client') or (candidate and candidate.profile_status=='Profile shared with client') %}selected{% endif %}>Profile shared with client</option>
+  <option value="Review Pending by client" {% if (data.profile_status is defined and data.profile_status=='Review Pending by client') or (candidate and candidate.profile_status=='Review Pending by client') %}selected{% endif %}>Review Pending by client</option>
+  <option value="R2 Pending" {% if (data.profile_status is defined and data.profile_status=='R2 Pending') or (candidate and candidate.profile_status=='R2 Pending') %}selected{% endif %}>R2 Pending</option>
+  <option value="R3 Pending" {% if (data.profile_status is defined and data.profile_status=='R3 Pending') or (candidate and candidate.profile_status=='R3 Pending') %}selected{% endif %}>R3 Pending</option>
+  <option value="R1 to be schedule" {% if (data.profile_status is defined and data.profile_status=='R1 to be schedule') or (candidate and candidate.profile_status=='R1 to be schedule') %}selected{% endif %}>R1 to be schedule</option>
+  <option value="R2 scheduled" {% if (data.profile_status is defined and data.profile_status=='R2 scheduled') or (candidate and candidate.profile_status=='R2 scheduled') %}selected{% endif %}>R2 scheduled</option>
+  <option value="R3 scheduled" {% if (data.profile_status is defined and data.profile_status=='R3 scheduled') or (candidate and candidate.profile_status=='R3 scheduled') %}selected{% endif %}>R3 scheduled</option>
+  <option value="R1 scheduled" {% if (data.profile_status is defined and data.profile_status=='R1 scheduled') or (candidate and candidate.profile_status=='R1 scheduled') %}selected{% endif %}>R1 scheduled</option>
+  <option value="R1 FBP" {% if (data.profile_status is defined and data.profile_status=='R1 FBP') or (candidate and candidate.profile_status=='R1 FBP') %}selected{% endif %}>R1 FBP</option>
+  <option value="R2 FBP" {% if (data.profile_status is defined and data.profile_status=='R2 FBP') or (candidate and candidate.profile_status=='R2 FBP') %}selected{% endif %}>R2 FBP</option>
+  <option value="R3 FBP" {% if (data.profile_status is defined and data.profile_status=='R3 FBP') or (candidate and candidate.profile_status=='R3 FBP') %}selected{% endif %}>R3 FBP</option>
+  <option value="HR Round" {% if (data.profile_status is defined and data.profile_status=='HR Round') or (candidate and candidate.profile_status=='HR Round') %}selected{% endif %}>HR Round</option>
+  <option value="Offered" {% if (data.profile_status is defined and data.profile_status=='Offered') or (candidate and candidate.profile_status=='Offered') %}selected{% endif %}>Offered</option>
+  <option value="R2 Rejected" {% if (data.profile_status is defined and data.profile_status=='R2 Rejected') or (candidate and candidate.profile_status=='R2 Rejected') %}selected{% endif %}>R2 Rejected</option>
+  <option value="R3 Rejected" {% if (data.profile_status is defined and data.profile_status=='R3 Rejected') or (candidate and candidate.profile_status=='R3 Rejected') %}selected{% endif %}>R3 Rejected</option>
+  <option value="R1 Rejected" {% if (data.profile_status is defined and data.profile_status=='R1 Rejected') or (candidate and candidate.profile_status=='R1 Rejected') %}selected{% endif %}>R1 Rejected</option>
       <div class="col-md-4">
         <label class="form-label">Interview date</label>
-        <input type="date" name="interview_date" class="form-control" value="{{ data.interview_date or '' }}">
+        <input type="date" name="interview_date" class="form-control" value="{{ data.interview_date or (candidate.interview_date.strftime('%Y-%m-%d') if candidate and candidate.interview_date else '') or '' }}">
       </div>
 
       <div class="col-md-4">
         <label class="form-label">Interview time</label>
-        <input type="time" name="interview_time" class="form-control" value="{{ data.interview_time or '' }}">
+        <input type="time" name="interview_time" class="form-control" value="{{ data.interview_time or candidate.interview_time or '' }}">
       </div>
 
       
@@ -214,7 +214,7 @@
 
       <div class="col-12">
         <label class="form-label">Comments</label>
-        <textarea class="form-control" name="comments" rows="4">{{ data.comments or '' }}</textarea>
+        <textarea class="form-control" name="comments" rows="4">{{ data.comments or candidate.comments or '' }}</textarea>
       </div>
 
       <div class="col-12 d-flex justify-content-end gap-2">
@@ -231,13 +231,13 @@ document.addEventListener('click', function(e) {
     const wrapper = document.getElementById('phones-wrapper');
     const row = document.createElement('div');
     row.className = 'input-row phone-row';
-    row.innerHTML = '<input type="text" name="phones" class="form-control" value=""><button type="button" class="btn btn-outline-danger remove-phone">Remove</button>';
+    row.innerHTML = '<input type="text" name="phones[]" class="form-control" value=""><button type="button" class="btn btn-outline-danger remove-phone">Remove</button>';
     wrapper.appendChild(row);
   } else if (e.target && e.target.id === 'add-email') {
     const wrapper = document.getElementById('emails-wrapper');
     const row = document.createElement('div');
     row.className = 'input-row email-row';
-    row.innerHTML = '<input type="email" name="emails" class="form-control" value=""><button type="button" class="btn btn-outline-danger remove-email">Remove</button>';
+    row.innerHTML = '<input type="email" name="emails[]" class="form-control" value=""><button type="button" class="btn btn-outline-danger remove-email">Remove</button>';
     wrapper.appendChild(row);
   } else if (e.target && e.target.classList.contains('remove-phone')) {
     e.target.closest('.phone-row').remove();

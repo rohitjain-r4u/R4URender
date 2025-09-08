@@ -64,7 +64,7 @@ FORCED_GROUPS = {
     "phones": ["phonenumber","phone","phoneno","phno","mobile","mobileno","mobile_number","cell","cellphone","contactnumber","contactno","whatsapp","whatsappno","whatsappnumber","telephone","tel"],
     "emails": ["email","emailid","email_id","emailaddress","e-mail","e_mail","mail","workemail","personalemail","primaryemail","secondaryemail","contactemail","businessmail","officialemail","emial","emai"],
     "notice_period": ["noticeperiod","npdays","noticeperioddays","notice_days"],
-    "notice_period_details": ["np","notice","noticeperioddetail","lwd","lastworkingday","servingnotice", "Ans(What is your notice period? Please provide accurate details.)"],
+    "notice_period_details": ["Offer","Offer Details","offer in hand"],
     "current_location": ["location","currentlocation","baselocation","joblocation","officelocation","city","workcity"],
     "preferred_locations": ["preferredlocation","preferredlocations","preferredcity","preferredcities","desiredlocation","desiredlocations","relocationpreference"],
     "ctc_current": ["ctc","presentctc","currentctc","annualctc","ctcyearly","yearlyctc","package","currentpackage","salary","currentsalary"],

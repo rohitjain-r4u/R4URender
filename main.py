@@ -32,7 +32,6 @@ from flask import jsonify
 app = Flask(__name__)
 
 
-
 # --- Health check endpoint (for Render/Gunicorn) ---
 @app.get("/healthz")
 def healthz():
@@ -222,6 +221,8 @@ def validate_requirement_form(form):
     # NEW FIELDS
     data['client_linkedin_profile'] = form.get('client_linkedin_profile', '').strip()
     data['client_brief_description'] = form.get('client_brief_description', '').strip()
+
+    data['client_poc'] = form.get('client_poc', '').strip()
 
     # Assigned To: MULTI-SELECT CHECKBOXES -> comma-separated usernames
     assigned_list = form.getlist('assigned_to')  # e.g., ['alice','bob']
@@ -489,6 +490,7 @@ def send_requirement_email(requirement, assigned_users):
     A new requirement has been assigned to you.
 
     Client: {requirement['client_name']}
+    Client POC: {requirement.get('client_poc','')}
     Requirement: {requirement['requirement_name']}
     Experience: {requirement['experience']}
     Skills: {requirement['mandatory_skills']}
@@ -540,14 +542,15 @@ def add_requirement():
 
                 cur.execute("""
                     INSERT INTO requirements (
-                        client_name, requirement_name, experience, mandatory_skills,
+                        client_name, client_poc, requirement_name, experience, mandatory_skills,
                         job_locations, remote, budget, job_description, job_d_th_d,
                         client_linkedin_profile, client_brief_description,
                         assigned_to, status, added_date
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
                     data['client_name'],
+                    data['client_poc'],
                     data['requirement_name'],
                     data['experience'],
                     data['mandatory_skills'],
@@ -651,6 +654,7 @@ def update_requirement(req_id):
                 cur.execute("""
                     UPDATE requirements SET
                         client_name = %s,
+                        client_poc = %s,
                         requirement_name = %s,
                         experience = %s,
                         mandatory_skills = %s,
@@ -666,6 +670,7 @@ def update_requirement(req_id):
                     WHERE id = %s
                 """, (
                     data['client_name'],
+                    data['client_poc'],
                     data['requirement_name'],
                     data['experience'],
                     data['mandatory_skills'],
@@ -689,7 +694,7 @@ def update_requirement(req_id):
                 assigned_users = [u.strip() for u in (req['assigned_to'] or '').split(',') if u.strip()]
                 send_requirement_email(req, assigned_users)
 
-                return redirect(url_for('requirement_detail', req_id=req_id))
+                return redirect(url_for('requirements', status='Active'))
 
             else:
                 cur.execute("SELECT * FROM requirements WHERE id = %s", (req_id,))
@@ -743,7 +748,7 @@ def requirement_candidates(req_id):
     try:
         with get_db_cursor() as (conn, cur):
             # requirement existence check
-            cur.execute("SELECT id, client_name, requirement_name, assigned_to FROM requirements WHERE id = %s", (req_id,))
+            cur.execute("SELECT id, client_name, client_poc, requirement_name, assigned_to FROM requirements WHERE id = %s", (req_id,))
             req = cur.fetchone()
             if not req:
                 flash('Requirement not found', 'danger')
@@ -1055,7 +1060,7 @@ def view_candidate(cand_id):
         return redirect(url_for('login'))
     try:
         with get_db_cursor() as (conn, cur):
-            cur.execute("SELECT c.*, r.client_name, r.requirement_name, r.assigned_to FROM candidates c LEFT JOIN requirements r ON c.requirement_id=r.id WHERE c.id = %s", (cand_id,))
+            cur.execute("SELECT c.*, r.client_name, r.client_poc, r.requirement_name, r.assigned_to FROM candidates c LEFT JOIN requirements r ON c.requirement_id=r.id WHERE c.id = %s", (cand_id,))
             cand = cur.fetchone()
             if not cand:
                 flash('Candidate not found', 'danger')
@@ -1086,7 +1091,7 @@ def candidate_partial(cand_id):
         return jsonify({'error': 'unauthenticated'}), 401
     try:
         with get_db_cursor() as (conn, cur):
-            cur.execute("SELECT c.*, r.client_name, r.requirement_name, r.assigned_to FROM candidates c LEFT JOIN requirements r ON c.requirement_id=r.id WHERE c.id = %s", (cand_id,))
+            cur.execute("SELECT c.*, r.client_name, r.client_poc, r.requirement_name, r.assigned_to FROM candidates c LEFT JOIN requirements r ON c.requirement_id=r.id WHERE c.id = %s", (cand_id,))
             cand = cur.fetchone()
             if not cand:
                 return ("<div class='p-3'>Candidate not found</div>", 404)

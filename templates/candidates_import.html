@@ -147,7 +147,7 @@ fetch("/candidates/import/commit", { ... })
       <div class="modal-footer d-flex justify-content-between">
         <div id="validationProgress" class="fw-semibold text-muted small"></div>
         <button id="finalCommitBtn" class="btn btn-success px-4 shadow-sm" disabled>
-          <i class="bi bi-upload"></i> Upload Candidates
+          <i class="bi bi-upload"></i> Add Candidates
         </button>
       </div>
     </div>
@@ -170,6 +170,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedFile = null;
   let uploadId = null;
   let mappings = [];
+  // Mapping display names (frontend only)
+  const columnDisplayNames = { "notice_period_details": "Offer Details" };
+
   let dbColumns = [];
   let confirming = false;
   let totalRows = null;
@@ -276,7 +279,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Allowed DB columns (unique except current selection)
     allowed.forEach(col => {
       const selected = current === col;
-      selectEl.appendChild(new Option(col, col, false, selected));
+      const label = columnDisplayNames[col] || col;
+      selectEl.appendChild(new Option(label, col, false, selected));
     });
 
     // Not Needed (always available)
@@ -574,18 +578,25 @@ document.addEventListener('DOMContentLoaded', () => {
     return { ok: errors.length === 0, error: errors.join('; ') };
   }
 
-  finalCommitBtn.addEventListener('click', async () => {
+  finalCommitBtn.addEventListener('click', async (e) => {
+    e.preventDefault(); e.stopImmediatePropagation();
+    // Single-click guard: ignore further clicks once this handler started.
+    if (finalCommitBtn.dataset.clicked === '1') return;
+    finalCommitBtn.dataset.clicked = '1';
     if (!allValid) {
       const firstBad = validationTbody.querySelector('tr.table-danger');
       if (firstBad) { firstBad.scrollIntoView({behavior:'smooth', block:'center'}); }
       validationError.textContent = 'Please fix all highlighted rows before uploading.';
       validationError.classList.remove('d-none');
+      // validation failed — allow clicking again
+      finalCommitBtn.dataset.clicked = '0';
+      finalCommitBtn.disabled = false;
       return;
     }
     validationError.classList.add('d-none');
 
     finalCommitBtn.disabled = true;
-    finalCommitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Uploading...`;
+    finalCommitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Adding...`;
     try {
       const res = await fetch("{{ url_for('import_bp.commit_candidates') }}", {
         method:'POST',
@@ -619,7 +630,8 @@ document.addEventListener('DOMContentLoaded', () => {
       validationError.textContent = `Commit error: ${err.message}`;
       validationError.classList.remove('d-none');
       finalCommitBtn.disabled = false;
-      finalCommitBtn.innerHTML = `<i class="bi bi-upload"></i> Upload Candidates`;
+      finalCommitBtn.dataset.clicked = '0';
+      finalCommitBtn.innerHTML = `<i class="bi bi-upload"></i> Add Candidates`;
     }
   });
 
