@@ -57,7 +57,7 @@ else:
 
 @contextmanager
 def get_db_cursor(commit_on_exit=False):
-    \"\"\"Yield (conn, cur). Uses DB_CONFIG; supports DB_CONFIG['dsn'] (DATABASE_URL).\"\"\"
+    """Yield (conn, cur). Uses DB_CONFIG; supports DB_CONFIG['dsn'] (DATABASE_URL)."""
     conn = None
     cur = None
     try:
