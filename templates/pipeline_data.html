@@ -290,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       rows.forEach(r => {
         const reqName = r.requirement_name || '';
-        const client = win._clientName;
+        const client = r.client_name || win._clientName || '';
         const clientPoc = r.client_poc || '';
         const assigned = r.assigned_to || '';
         const reqId = r.requirement_id || r.requirement || '';
@@ -559,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       rows.forEach(r => {
         const reqName = r.requirement_name || '';
-        const client = win._clientName;
+        const client = r.client_name || win._clientName || '';
         const clientPoc = r.client_poc || '';
         const assigned = r.assigned_to || '';
         const reqId = r.requirement_id || r.requirement || '';
@@ -789,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             rows.forEach(r => {
               const reqName = r.requirement_name || '';
-              const client = win._clientName || '';
+              const client = r.client_name || win._clientName || '';
               const clientPoc = r.client_poc || '';
               const assigned = r.assigned_to || '';
               const reqId = r.requirement_id || r.requirement || '';
