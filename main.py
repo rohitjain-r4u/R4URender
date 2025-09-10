@@ -31,6 +31,8 @@ from flask import jsonify
 
 app = Flask(__name__)
 
+from pipeline_routes import bp as pipeline_bp
+app.register_blueprint(pipeline_bp)
 
 # --- Health check endpoint (for Render/Gunicorn) ---
 @app.get("/healthz")

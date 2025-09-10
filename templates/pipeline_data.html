@@ -1,0 +1,862 @@
+{% extends "base.html" %}
+{% block title %}Active Clients{% endblock %}
+
+{% block content %}
+
+<style>
+  :root{
+    --card-bg: #ffffff;
+    --surface: #f8fafc;
+    --muted: #6b7280;
+    --border: #e6e9ee;
+    --shadow: 0 6px 20px rgba(15,23,42,0.06);
+    --accent-blue: #2563eb;
+  }
+  .clients-wrapper { max-width: 1200px; margin: 28px auto; padding: 12px 18px 36px; }
+  .page-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+  .page-title { font-size:28px; font-weight:700; margin:0; color:#111827; }
+  .controls { display:flex; gap:12px; align-items:center; }
+  .control { background:var(--card-bg); border:1px solid var(--border); padding:6px 10px; border-radius:8px; box-shadow: var(--shadow); }
+  .control select, .control input { border:none; outline:none; font-size:14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; align-items: stretch; margin-top: 16px; }
+  .client-card { background: var(--card-bg); border-radius: 10px; border: 1px solid var(--border); padding: 18px 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: space-between; min-height: 110px; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+  .client-card:hover { transform: translateY(-6px); box-shadow: 0 14px 40px rgba(2,6,23,0.12); }
+  .client-top { display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .client-badge { display:inline-block; padding: 8px 14px; border-radius: 999px; font-weight:700; color: #fff; font-size: 14px; text-align:center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .client-name-visible { display:block; margin-top: 6px; text-align:center; font-weight:700; color:#0f172a; font-size:13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .client-count { display:block; text-align:center; margin-top: 8px; font-weight:800; color: var(--accent-blue); text-decoration: underline; text-decoration-color: rgba(37,99,235,0.65); text-underline-offset: 6px; cursor: pointer; }
+  .client-count.small { font-size: 13px; }
+  .client-count.large { font-size: 18px; }
+  .empty-state { text-align:center; color:var(--muted); padding:36px; }
+  @media (max-width:880px){ .page-header { flex-direction: column; align-items: stretch; } .controls { justify-content: space-between; } .client-card { min-height: 86px; padding: 12px; } .client-name-visible { font-size: 13px; } }
+  .popup-table-wrapper { overflow-x:auto; }
+  .back-btn { display:inline-block; margin-bottom:8px; padding:6px 10px; border-radius:8px; background:#111827; color:#fff; text-decoration:none; }
+  .client-card:focus { outline: 3px solid rgba(37,99,235,0.25); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) {
+    .client-card { transition: none; transform: none; }
+  }
+  .pagination {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+    gap: 8px;
+  }
+  .pagination button {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .pagination button:hover:not(:disabled) {
+    background: var(--accent-blue);
+    color: white;
+  }
+  .pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .pagination-info {
+    text-align: center;
+    margin: 10px 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>
+
+<div class="clients-wrapper">
+  <div class="page-header">
+    <h1 class="page-title">Active Clients</h1>
+
+    <div class="controls" role="region" aria-label="Client controls">
+      <div class="control" title="Sort clients">
+        <label style="font-size:12px;color:var(--muted);margin-right:6px;">Sort</label>
+        <select id="sort-select" aria-label="Sort clients">
+          <option value="name_asc">Name A–Z</option>
+          <option value="name_desc">Name Z–A</option>
+          <option value="count_desc">Active Req (High → Low)</option>
+          <option value="count_asc">Active Req (Low → High)</option>
+        </select>
+      </div>
+
+      <div class="control" style="display:flex;gap:8px;align-items:center;">
+        <label style="font-size:12px;color:var(--muted);margin-right:4px;">Filter</label>
+        <input id="filter-min" type="number" min="0" placeholder="min" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border)" aria-label="Minimum active requirements" />
+        <input id="filter-max" type="number" min="0" placeholder="max" style="width:60px;padding:6px;border-radius:6px;border:1px solid var(--border)" aria-label="Maximum active requirements" />
+        <button id="filter-apply" style="padding:6px 10px;border-radius:8px;background:#111827;color:#fff;border:none;cursor:pointer;font-weight:700" aria-label="Apply filters">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" aria-live="polite" style="color:var(--muted)">Loading clients…</div>
+
+  <div id="clients-grid" class="grid" aria-describedby="loading" role="list"></div>
+
+  <div id="empty" class="empty-state" style="display:none;">No active clients found</div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const COLORS = ["#2563eb", "#16a34a", "#db2777", "#f59e0b", "#9333ea", "#0d9488", "#ea580c", "#be123c", "#7c3aed", "#059669", "#0f766e", "#1e3a8a"];
+  const GRID = document.getElementById('clients-grid');
+  const EMPTY = document.getElementById('empty');
+
+  function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[ch])); }
+  function hashCode(str) { let h = 2166136261 >>> 0; for (let i = 0; i < (str || '').length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+
+  let clientsData = [];
+
+  async function loadClients() {
+    try {
+      document.getElementById('loading').textContent = 'Loading clients…';
+
+      // Fetch clients list and all-summary in parallel
+      const [resClients, resAll] = await Promise.all([
+        fetch('/api/clients'),
+        fetch('/api/clients/all_summary')
+      ]);
+
+      if (!resClients.ok || !resAll.ok) throw new Error('Network response not ok');
+
+      const items = await resClients.json();
+      const allSummary = await resAll.json();
+
+      clientsData = (items || []).filter(i => i && i.client_name).map(i => ({
+        client_name: i.client_name,
+        active_requirements: parseInt(i.active_requirements || 0, 10)
+      }));
+
+      // Prepend "All Clients" card so it always appears first
+      if (allSummary && typeof allSummary.active_requirements !== 'undefined') {
+        clientsData.unshift({
+          client_name: allSummary.client_name || 'All Clients',
+          active_requirements: parseInt(allSummary.active_requirements || 0, 10)
+        });
+      }
+
+      renderClients(clientsData);
+    } catch (err) {
+      console.error('Failed to load clients', err);
+      document.getElementById('loading').textContent = 'Error loading clients';
+    }
+  }
+
+  function renderClients(items) {
+    GRID.innerHTML = '';
+    document.getElementById('loading').textContent = '';
+    if (!items.length) { EMPTY.style.display = 'block'; return; } else { EMPTY.style.display = 'none'; }
+
+    items.forEach((it, i) => {
+      const card = document.createElement('div');
+      card.className = 'client-card';
+      card.setAttribute('role','listitem');
+      card.setAttribute('tabindex','0');
+      card.dataset.clientName = it.client_name;
+
+      const top = document.createElement('div');
+      top.className = 'client-top';
+
+      const badge = document.createElement('div');
+      badge.className = 'client-badge';
+      badge.textContent = it.client_name;
+      const colorIdx = Math.abs(hashCode(it.client_name || String(i))) % COLORS.length;
+      badge.style.background = COLORS[colorIdx];
+      badge.title = it.client_name;
+
+      const visibleName = document.createElement('div');
+      visibleName.className = 'client-name-visible';
+      visibleName.textContent = it.client_name;
+      visibleName.title = it.client_name;
+
+      top.appendChild(badge);
+      top.appendChild(visibleName);
+
+      const count = document.createElement('div');
+      count.className = 'client-count ' + (it.active_requirements > 5 ? 'large' : 'small');
+      count.textContent = String(it.active_requirements || 0);
+      count.title = 'Click to view requirements';
+
+      card.appendChild(top);
+      card.appendChild(count);
+      GRID.appendChild(card);
+    });
+  }
+
+  document.getElementById('sort-select').addEventListener('change', applySortFilter);
+  document.getElementById('filter-apply').addEventListener('click', applySortFilter);
+
+  function applySortFilter() {
+    const sortVal = document.getElementById('sort-select').value;
+    const minVal = parseInt(document.getElementById('filter-min').value || 0, 10);
+    const maxRaw = document.getElementById('filter-max').value;
+    const maxVal = maxRaw === '' ? Infinity : parseInt(maxRaw, 10);
+
+    let filtered = clientsData.filter(it => it.active_requirements >= minVal && it.active_requirements <= maxVal);
+    switch (sortVal) {
+      case 'name_asc': filtered.sort((a,b) => a.client_name.localeCompare(b.client_name)); break;
+      case 'name_desc': filtered.sort((a,b) => b.client_name.localeCompare(a.client_name)); break;
+      case 'count_desc': filtered.sort((a,b) => b.active_requirements - a.active_requirements); break;
+      case 'count_asc': filtered.sort((a,b) => a.active_requirements - b.active_requirements); break;
+    }
+    renderClients(filtered);
+  }
+
+  // helper to normalize event target (handle text nodes)
+  function elementFromEventTarget(target) {
+    return (target && target.nodeType === 3) ? target.parentElement : target;
+  }
+
+  GRID.addEventListener('click', function (ev) {
+    const tgt = elementFromEventTarget(ev.target);
+    const countEl = tgt && tgt.closest && tgt.closest('.client-count');
+    if (countEl) {
+      const card = tgt.closest && tgt.closest('.client-card');
+      if (!card) return;
+      const clientName = card.dataset.clientName || (card.querySelector && card.querySelector('.client-name-visible') && card.querySelector('.client-name-visible').textContent.trim());
+      if (clientName) {
+        openRequirementsPopup(clientName);
+      }
+      return;
+    }
+
+    const card = tgt.closest && tgt.closest('.client-card');
+    if (!card) return;
+    const clientName = card.dataset.clientName || (card.querySelector && card.querySelector('.client-name-visible') && card.querySelector('.client-name-visible').textContent.trim());
+    if (clientName) {
+      openRequirementsPopup(clientName);
+    }
+  });
+
+  GRID.addEventListener('keydown', function (ev) { if (ev.key !== 'Enter') return; const card = ev.target.closest('.client-card'); if (!card) return; const clientName = card.dataset.clientName || (card.querySelector && card.querySelector('.client-name-visible') && card.querySelector('.client-name-visible').textContent.trim()); if (clientName) openRequirementsPopup(clientName); });
+
+  // Add pagination controls to the HTML
+  function addPaginationControls(pagination) {
+    const { page, pages } = pagination;
+    return `
+      <div class="pagination">
+        <button onclick="loadRequirementsPage(${page - 1})" ${page <= 1 ? 'disabled' : ''}>Previous</button>
+        <span>Page ${page} of ${pages}</span>
+        <button onclick="loadRequirementsPage(${page + 1})" ${page >= pages ? 'disabled' : ''}>Next</button>
+      </div>
+    `;
+  }
+
+  // Function to load a different page of requirements
+  async function loadRequirementsPage(page) {
+    const win = window; // This function will be called from the popup window
+    
+    if (page < 1 || page > win._totalPages) return;
+    
+    win.document.getElementById('popup-content').innerHTML = '<div class="muted">Loading…</div>';
+    
+    try {
+      const clientName = win._clientName;
+      const perPage = win._perPage;
+      
+      let url = clientName === 'All Clients' 
+        ? `/api/client/requirements_details_all?page=${page}&per_page=${perPage}`
+        : `/api/client/requirements_details?client_name=${encodeURIComponent(clientName)}&page=${page}&per_page=${perPage}`;
+      
+      const reqRes = await fetch(url);
+      if (!reqRes.ok) throw new Error('Failed to fetch requirements');
+      const data = await reqRes.json();
+      const rows = data.requirements || [];
+      
+      if (!rows.length) {
+        win.document.getElementById('popup-content').innerHTML = '<div class="muted">No requirements found.</div>';
+        return;
+      }
+      
+      win._requirementsRows = rows;
+      win._currentPage = data.pagination.page;
+      win._totalPages = data.pagination.pages;
+      
+      // Build the table HTML
+      let html = '<div style="margin-bottom:8px;" class="muted">Click any candidate count to view the candidate list for that requirement (opens below in same window).</div>';
+      html += addPaginationControls(data.pagination);
+      html += '<div class="popup-table-wrapper"><table><thead><tr>'
+        + '<th>Client Name</th>'
+        + '<th>Requirement Name</th>'
+        + '<th>Client POC</th>'
+        + '<th>Assigned To</th>'
+        + '<th style="text-align:right">Total Candidates</th>'
+        + '<th style="text-align:right">Added (7d)</th>'
+        + '<th style="text-align:right">Not Rejected</th>'
+        + '<th style="text-align:right">R2 Candidates</th>'
+        + '<th style="text-align:right">R3 Candidates</th>'
+        + '<th style="text-align:right">HR Rounds</th>'
+        + '<th style="text-align:right">Offered</th>'
+        + '</tr></thead><tbody>';
+      
+      rows.forEach(r => {
+        const reqName = r.requirement_name || '';
+        const client = win._clientName;
+        const clientPoc = r.client_poc || '';
+        const assigned = r.assigned_to || '';
+        const reqId = r.requirement_id || r.requirement || '';
+        const totalCandidates = Number(r.total_candidates || 0);
+        const added7 = Number(r.candidates_last_7_days || 0);
+        const notRejected = Number(r.candidates_not_rejected || 0);
+        const r2Candidates = Number(r.r2_candidates || 0);
+        const r3Candidates = Number(r.r3_candidates || 0);
+        const hrRounds = Number(r.hr_rounds || 0);
+        const offered = Number(r.offered_count || 0);
+
+        html += '<tr>'
+          + `<td>${escapeHtml(client)}</td>`
+          + `<td>${escapeHtml(reqName)}</td>`
+          + `<td>${escapeHtml(clientPoc)}</td>`
+          + `<td>${escapeHtml(assigned)}</td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="total">${totalCandidates}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="added">${added7}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="not_rejected">${notRejected}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="r2">${r2Candidates}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="r3">${r3Candidates}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="hr">${hrRounds}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="offered">${offered}</a></td>`
+          + '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      win.document.getElementById('popup-content').innerHTML = html;
+
+      // Attach delegated click handling inside the popup window
+      if (win._popupClickHandler && typeof win._popupClickHandler === 'function') {
+        try { win.document.removeEventListener('click', win._popupClickHandler); } catch (er) { /* ignore */ }
+      }
+
+      win._popupClickHandler = function popupClickHandler(e) {
+        const a = e.target.closest && e.target.closest('.count-link');
+        if (!a) return;
+        e.preventDefault();
+        const reqId = a.getAttribute('data-reqid');
+        const reqName = a.getAttribute('data-reqname');
+        const countType = a.getAttribute('data-counttype') || a.getAttribute('data-count-type') || (a.dataset && a.dataset.counttype);
+        openCandidatesListInPopup(win, reqId, reqName, countType);
+      };
+
+      win.document.addEventListener('click', win._popupClickHandler);
+
+    } catch (err) {
+      win.document.getElementById('popup-content').innerHTML = `<div style="color:#c00">Failed to load data: ${escapeHtml(err.message || '')}</div>`;
+      console.error(err);
+    }
+  }
+
+  // Helper function for candidate pagination controls
+  function addCandidatePaginationControls(pagination) {
+    const { page, pages } = pagination;
+    return `
+      <div class="pagination candidate-pagination">
+        <button class="prev-btn" ${page <= 1 ? 'disabled' : ''}>Previous</button>
+        <span>Page ${page} of ${pages}</span>
+        <button class="next-btn" ${page >= pages ? 'disabled' : ''}>Next</button>
+      </div>
+      <div class="pagination-info">Showing ${pagination.per_page} candidates per page</div>
+    `;
+  }
+
+  // Function to load a different page of candidates
+  async function loadCandidatePage(win, page) {
+    if (page < 1 || page > win._candidateTotalPages) return;
+    
+    win.document.getElementById('popup-content').innerHTML = '<div class="muted">Loading candidates…</div>';
+    
+    try {
+      const requirementId = win._requirementId;
+      const countType = win._countType;
+      const perPage = win._candidatePerPage;
+      
+      let url = `/api/candidates?requirement_id=${encodeURIComponent(requirementId)}`;
+      if (countType) url += `&count_type=${encodeURIComponent(countType)}`;
+      url += `&page=${page}&per_page=${perPage}`;
+      
+      const listRes = await fetch(url);
+      if (!listRes.ok) throw new Error('Failed to fetch candidates');
+      const data = await listRes.json();
+      const candidateDetails = data.data || [];
+      
+      // Update pagination info
+      win._candidateCurrentPage = data.pagination.page;
+      win._candidateTotalPages = data.pagination.pages;
+      
+      // Build candidates table with pagination controls
+      let html = `
+        <a href="#" id="back-to-reqs" class="back-btn">← Back to Requirements</a>
+        <div><h2 style="display:inline-block;margin-left:12px;font-size:16px;">Candidates for: ${escapeHtml(win._requirementName || requirementId)}</h2></div>`;
+      
+      // Add pagination controls
+      html += addCandidatePaginationControls(data.pagination);
+      
+      html += '<div class="popup-table-wrapper"><table><thead><tr>'
+        + '<th>Name</th>'
+        + '<th>Email</th>'
+        + '<th>Phone</th>'
+        + '<th>Company</th>'
+        + '<th>Location</th>'
+        + '<th>CTC (Current)</th>'
+        + '<th>ECTC (Expected)</th>'
+        + '<th>Notice Period</th>'
+        + '<th>Profile Status</th>'
+        + '<th>Calling Status</th>'
+        + '<th>Offer Details</th>'
+        + '<th>Comments</th>'
+        + '<th>Added By</th>'
+        + '<th>Added Date</th>'
+        + '</tr></thead><tbody>';
+      
+      candidateDetails.forEach(c => {
+        const name = c.candidate_name || c.name || c.full_name || '';
+        const email = (c.emails && (Array.isArray(c.emails) ? c.emails.join(', ') : c.emails)) || c.email || '';
+        const phone = (c.phones && (Array.isArray(c.phones) ? c.phones.join(', ') : c.phones)) || c.phone || '';
+        const company = c.company || c.current_company || c.employer || '';
+        const location = c.location || c.current_location || '';
+        const ctc = c.current_ctc || c.ctc || c.current_salary || '';
+        const ectc = c.expected_ctc || c.ectc || c.expected_salary || '';
+        const notice = c.notice_period || c.notice || '';
+        const profileStatus = c.profile_status || c.status || '';
+        const callingStatus = c.calling_status || c.calling || '';
+        const offerDetails = c.offer_details || c.offer || '';
+        const comments = c.comments || c.notes || '';
+        const addedBy = c.added_by || c.added_by_name || c.created_by || '';
+        const addedDate = c.added_date || c.created_at || c.added_on || '';
+
+        html += '<tr>'
+          + `<td>${escapeHtml(name)}</td>`
+          + `<td>${escapeHtml(email)}</td>`
+          + `<td>${escapeHtml(phone)}</td>`
+          + `<td>${escapeHtml(company)}</td>`
+          + `<td>${escapeHtml(location)}</td>`
+          + `<td>${escapeHtml(ctc)}</td>`
+          + `<td>${escapeHtml(ectc)}</td>`
+          + `<td>${escapeHtml(notice)}</td>`
+          + `<td>${escapeHtml(profileStatus)}</td>`
+          + `<td>${escapeHtml(callingStatus)}</td>`
+          + `<td>${escapeHtml(offerDetails)}</td>`
+          + `<td>${escapeHtml(comments)}</td>`
+          + `<td>${escapeHtml(addedBy)}</td>`
+          + `<td>${escapeHtml(addedDate)}</td>`
+          + '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      win.document.getElementById('popup-content').innerHTML = html;
+
+      // Add event listener for pagination buttons
+      const prevBtn = win.document.querySelector('.candidate-pagination .prev-btn');
+      const nextBtn = win.document.querySelector('.candidate-pagination .next-btn');
+      
+      if (prevBtn) {
+        prevBtn.onclick = () => loadCandidatePage(win, data.pagination.page - 1);
+      }
+      if (nextBtn) {
+        nextBtn.onclick = () => loadCandidatePage(win, data.pagination.page + 1);
+      }
+      
+      // Re-attach back button handler
+      const backBtn = win.document.getElementById('back-to-reqs');
+      if (backBtn) {
+        backBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          // Go back to requirements view
+          openRequirementsPopup(win._clientName);
+        });
+      }
+      
+    } catch (err) {
+      win.document.getElementById('popup-content').innerHTML = `<div style="color:#c00">Failed to load data: ${escapeHtml(err.message || '')}</div>`;
+      console.error(err);
+    }
+  }
+
+  // Opens a popup window showing requirements. Clicking candidate counts in that popup
+  // will replace the popup content with the candidate list for that requirement (same popup window).
+  async function openRequirementsPopup(clientName) {
+    const win = window.open('', '_blank', 'width=1000,height=700,scrollbars=yes');
+    if (!win) { alert('Popup blocked. Please allow popups for this site to view client requirements.'); return; }
+
+    win.document.title = 'Requirements — ' + clientName;
+    const style = `
+      body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding:18px; color:#0f172a; }
+      h1 { font-size:20px; margin-bottom:8px; }
+      .popup-table-wrapper { overflow-x:auto; margin-top:12px; }
+      table { width:100%; border-collapse:collapse; margin-top:12px; font-size:13px; }
+      th, td { padding:10px 8px; border:1px solid #e6e9ee; text-align:left; vertical-align:top; }
+      th { background:#f8fafc; font-weight:700; position:sticky; top:0; }
+      .muted { color:#6b7280; font-size:13px; }
+      .count-link { color: inherit; text-decoration: underline; cursor: pointer; }
+      .back-btn { display:inline-block; margin-bottom:8px; padding:6px 10px; border-radius:8px; background:#111827; color:#fff; text-decoration:none; }
+      .pagination {
+        display: flex;
+        justify-content: center;
+        margin: 20px 0;
+        gap: 8px;
+      }
+      .pagination button {
+        padding: 8px 12px;
+        border: 1px solid #e6e9ee;
+        background: #f8fafc;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .pagination button:hover:not(:disabled) {
+        background: #2563eb;
+        color: white;
+      }
+      .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .pagination-info {
+        text-align: center;
+        margin: 10px 0;
+        color: #6b7280;
+        font-size: 14px;
+      }
+    `;
+
+    win.document.body.innerHTML = `<style>${style}</style><h1>Requirements for ${escapeHtml(clientName)}</h1><div id="popup-content"><div class="muted">Loading…</div></div>`;
+
+    try {
+      // Add pagination parameters
+      const page = 1; // Start with first page
+      const perPage = 100; // Default page size
+      
+      let url = clientName === 'All Clients' 
+        ? `/api/client/requirements_details_all?page=${page}&per_page=${perPage}`
+        : `/api/client/requirements_details?client_name=${encodeURIComponent(clientName)}&page=${page}&per_page=${perPage}`;
+      
+      const reqRes = await fetch(url);
+      if (!reqRes.ok) throw new Error('Failed to fetch requirements');
+      const data = await reqRes.json();
+      const rows = data.requirements || [];
+
+      if (!rows.length) { win.document.getElementById('popup-content').innerHTML = '<div class="muted">No active requirements found for this client.</div>'; return; }
+
+      // Store rows on the popup window so we can re-render (Back button) without re-fetching
+      win._requirementsRows = rows;
+      win._clientName = clientName;
+      win._currentPage = data.pagination.page;
+      win._totalPages = data.pagination.pages;
+      win._perPage = data.pagination.per_page;
+
+      // Build table with clickable counts (data-reqid attribute required)
+      let html = '<div style="margin-bottom:8px;" class="muted">Click any candidate count to view the candidate list for that requirement (opens below in same window).</div>';
+      html += addPaginationControls(data.pagination);
+      html += '<div class="popup-table-wrapper"><table><thead><tr>'
+        + '<th>Client Name</th>'
+        + '<th>Requirement Name</th>'
+        + '<th>Client POC</th>'
+        + '<th>Assigned To</th>'
+        + '<th style="text-align:right">Total Candidates</th>'
+        + '<th style="text-align:right">Added (7d)</th>'
+        + '<th style="text-align:right">Not Rejected</th>'
+        + '<th style="text-align:right">R2 Candidates</th>'
+        + '<th style="text-align:right">R3 Candidates</th>'
+        + '<th style="text-align:right">HR Rounds</th>'
+        + '<th style="text-align:right">Offered</th>'
+        + '</tr></thead><tbody>';
+
+      rows.forEach(r => {
+        const reqName = r.requirement_name || '';
+        const client = win._clientName;
+        const clientPoc = r.client_poc || '';
+        const assigned = r.assigned_to || '';
+        const reqId = r.requirement_id || r.requirement || '';
+        const totalCandidates = Number(r.total_candidates || 0);
+        const added7 = Number(r.candidates_last_7_days || 0);
+        const notRejected = Number(r.candidates_not_rejected || 0);
+        const r2Candidates = Number(r.r2_candidates || 0);
+        const r3Candidates = Number(r.r3_candidates || 0);
+        const hrRounds = Number(r.hr_rounds || 0);
+        const offered = Number(r.offered_count || 0);
+
+        // clickable links call into popup's JS (we'll attach event listener inside the popup)
+        html += '<tr>'
+          + `<td>${escapeHtml(client)}</td>`
+          + `<td>${escapeHtml(reqName)}</td>`
+          + `<td>${escapeHtml(clientPoc)}</td>`
+          + `<td>${escapeHtml(assigned)}</td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="total">${totalCandidates}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="added">${added7}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="not_rejected">${notRejected}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="r2">${r2Candidates}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="r3">${r3Candidates}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="hr">${hrRounds}</a></td>`
+          + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escapeHtml(reqId)}" data-reqname="${escapeHtml(reqName)}" data-counttype="offered">${offered}</a></td>`
+          + '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+
+      win.document.getElementById('popup-content').innerHTML = html;
+
+      // Attach delegated click handling inside the popup window
+
+      // remove previous handler if any, then attach fresh one and store it so we can remove later
+      if (win._popupClickHandler && typeof win._popupClickHandler === 'function') {
+        try { win.document.removeEventListener('click', win._popupClickHandler); } catch (er) { /* ignore */ }
+      }
+
+      win._popupClickHandler = function popupClickHandler(e) {
+        const a = e.target.closest && e.target.closest('.count-link');
+        if (!a) return;
+        e.preventDefault();
+        const reqId = a.getAttribute('data-reqid');
+        const reqName = a.getAttribute('data-reqname');
+        const countType = a.getAttribute('data-counttype') || a.getAttribute('data-count-type') || (a.dataset && a.dataset.counttype);
+        // call function that will replace popup content with candidate list (pass selected count type)
+        openCandidatesListInPopup(win, reqId, reqName, countType);
+      };
+
+      win.document.addEventListener('click', win._popupClickHandler);
+
+    } catch (err) {
+      win.document.getElementById('popup-content').innerHTML = `<div style="color:#c00">Failed to load data: ${escapeHtml(err.message || '')}</div>`;
+      console.error(err);
+    }
+  }
+
+  // Fetch and render candidates inside the provided popup window. Adds a Back button
+  // to restore the requirements table stored earlier on win._requirementsRows
+  async function openCandidatesListInPopup(win, requirementId, requirementName, countType) {
+    if (!win) return;
+    try {
+      win.document.getElementById('popup-content').innerHTML = '<div class="muted">Loading candidates…</div>';
+
+      // fetch candidate list (basic fields)
+      const page = 1; // Start with first page
+      const perPage = 100; // Default page size
+      
+      let url = `/api/candidates?requirement_id=${encodeURIComponent(requirementId)}`;
+      if (countType) url += `&count_type=${encodeURIComponent(countType)}`;
+      url += `&page=${page}&per_page=${perPage}`;
+      
+      const listRes = await fetch(url);
+      if (!listRes.ok) throw new Error('Failed to fetch candidates');
+      const data = await listRes.json();
+      const candidateDetails = data.data || [];
+
+      // Store pagination info
+      win._candidateCurrentPage = data.pagination.page;
+      win._candidateTotalPages = data.pagination.pages;
+      win._candidatePerPage = data.pagination.per_page;
+      win._requirementId = requirementId;
+      win._requirementName = requirementName;
+      win._countType = countType;
+
+      // Build candidates table with pagination controls
+      let html = `
+        <a href="#" id="back-to-reqs" class="back-btn">← Back to Requirements</a>
+        <div><h2 style="display:inline-block;margin-left:12px;font-size:16px;">Candidates for: ${escapeHtml(requirementName || requirementId)}</h2></div>`;
+      
+      // Add pagination controls
+      html += addCandidatePaginationControls(data.pagination);
+      
+      html += '<div class="popup-table-wrapper"><table><thead><tr>'
+        + '<th>Name</th>'
+        + '<th>Email</th>'
+        + '<th>Phone</th>'
+        + '<th>Company</th>'
+        + '<th>Location</th>'
+        + '<th>CTC (Current)</th>'
+        + '<th>ECTC (Expected)</th>'
+        + '<th>Notice Period</th>'
+        + '<th>Profile Status</th>'
+        + '<th>Calling Status</th>'
+        + '<th>Offer Details</th>'
+        + '<th>Comments</th>'
+        + '<th>Added By</th>'
+        + '<th>Added Date</th>'
+        + '</tr></thead><tbody>';
+
+      candidateDetails.forEach(c => {
+        const name = c.candidate_name || c.name || c.full_name || '';
+        const email = (c.emails && (Array.isArray(c.emails) ? c.emails.join(', ') : c.emails)) || c.email || '';
+        const phone = (c.phones && (Array.isArray(c.phones) ? c.phones.join(', ') : c.phones)) || c.phone || '';
+        const company = c.company || c.current_company || c.employer || '';
+        const location = c.location || c.current_location || '';
+        const ctc = c.current_ctc || c.ctc || c.current_salary || '';
+        const ectc = c.expected_ctc || c.ectc || c.expected_salary || '';
+        const notice = c.notice_period || c.notice || '';
+        const profileStatus = c.profile_status || c.status || '';
+        const callingStatus = c.calling_status || c.calling || '';
+        const offerDetails = c.offer_details || c.offer || '';
+        const comments = c.comments || c.notes || '';
+        const addedBy = c.added_by || c.added_by_name || c.created_by || '';
+        const addedDate = c.added_date || c.created_at || c.added_on || '';
+
+        html += '<tr>'
+          + `<td>${escapeHtml(name)}</td>`
+          + `<td>${escapeHtml(email)}</td>`
+          + `<td>${escapeHtml(phone)}</td>`
+          + `<td>${escapeHtml(company)}</td>`
+          + `<td>${escapeHtml(location)}</td>`
+          + `<td>${escapeHtml(ctc)}</td>`
+          + `<td>${escapeHtml(ectc)}</td>`
+          + `<td>${escapeHtml(notice)}</td>`
+          + `<td>${escapeHtml(profileStatus)}</td>`
+          + `<td>${escapeHtml(callingStatus)}</td>`
+          + `<td>${escapeHtml(offerDetails)}</td>`
+          + `<td>${escapeHtml(comments)}</td>`
+          + `<td>${escapeHtml(addedBy)}</td>`
+          + `<td>${escapeHtml(addedDate)}</td>`
+          + '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      win.document.getElementById('popup-content').innerHTML = html;
+
+      // Add event listener for pagination buttons
+      const prevBtn = win.document.querySelector('.candidate-pagination .prev-btn');
+      const nextBtn = win.document.querySelector('.candidate-pagination .next-btn');
+      
+      if (prevBtn) {
+        prevBtn.onclick = () => loadCandidatePage(win, data.pagination.page - 1);
+      }
+      if (nextBtn) {
+        nextBtn.onclick = () => loadCandidatePage(win, data.pagination.page + 1);
+      }
+
+      // Hook up Back button — inline (duplicated) requirements-rendering logic (no call to openRequirementsPopup)
+      const backBtn = win.document.getElementById('back-to-reqs');
+      if (backBtn) {
+        backBtn.addEventListener('click', async function (e) {
+          e.preventDefault();
+
+          // Use the client name stored on the popup window
+          const clientName = win._clientName || '';
+
+          // set a safe title element (use textContent to avoid XSS)
+          try {
+            if (!win.document.head) {
+              const head = win.document.createElement('head');
+              win.document.documentElement.insertBefore(head, win.document.body);
+            }
+            const existingTitle = win.document.head.querySelector('title');
+            if (existingTitle) existingTitle.remove();
+            const titleEl = win.document.createElement('title');
+            titleEl.textContent = `Requirements — ${clientName}`;
+            win.document.head.appendChild(titleEl);
+          } catch (err) {
+            console.error('Failed to set popup title', err);
+          }
+
+          const popupContent = win.document.getElementById('popup-content');
+          if (popupContent) popupContent.innerHTML = '<div class="muted">Loading…</div>';
+
+          try {
+            const page = win._currentPage || 1;
+            const perPage = win._perPage || 100;
+            
+            let url = clientName === 'All Clients' 
+              ? `/api/client/requirements_details_all?page=${page}&per_page=${perPage}`
+              : `/api/client/requirements_details?client_name=${encodeURIComponent(clientName)}&page=${page}&per_page=${perPage}`;
+            
+            const reqRes = await fetch(url);
+            if (!reqRes.ok) throw new Error('Failed to fetch requirements');
+            const data = await reqRes.json();
+            const rows = data.requirements || [];
+
+            if (!rows.length) {
+              if (popupContent) popupContent.innerHTML = '<div class="muted">No active requirements found for this client.</div>';
+              return;
+            }
+
+            win._requirementsRows = rows;
+            win._clientName = clientName;
+            win._currentPage = data.pagination.page;
+            win._totalPages = data.pagination.pages;
+            win._perPage = data.pagination.per_page;
+
+            const escape = (typeof escapeHtml === 'function') ? escapeHtml : (win.opener && win.opener.escapeHtml) ? win.opener.escapeHtml : (s => String(s || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[ch])));
+
+            let htmlReq = '<div style="margin-bottom:8px;" class="muted">Click any candidate count to view the candidate list for that requirement (opens below in same window).</div>';
+            htmlReq += addPaginationControls(data.pagination);
+            htmlReq += '<div class="popup-table-wrapper"><table><thead><tr>'
+              + '<th>Client Name</th>'
+              + '<th>Requirement Name</th>'
+              + '<th>Client POC</th>'
+              + '<th>Assigned To</th>'
+              + '<th style="text-align:right">Total Candidates</th>'
+              + '<th style="text-align:right">Added (7d)</th>'
+              + '<th style="text-align:right">Not Rejected</th>'
+              + '<th style="text-align:right">R2 Candidates</th>'
+              + '<th style="text-align:right">R3 Candidates</th>'
+              + '<th style="text-align:right">HR Rounds</th>'
+              + '<th style="text-align:right">Offered</th>'
+              + '</tr></thead><tbody>';
+
+            rows.forEach(r => {
+              const reqName = r.requirement_name || '';
+              const client = win._clientName || '';
+              const clientPoc = r.client_poc || '';
+              const assigned = r.assigned_to || '';
+              const reqId = r.requirement_id || r.requirement || '';
+              const totalCandidates = Number(r.total_candidates || 0);
+              const added7 = Number(r.candidates_last_7_days || 0);
+              const notRejected = Number(r.candidates_not_rejected || 0);
+              const r2Candidates = Number(r.r2_candidates || 0);
+              const r3Candidates = Number(r.r3_candidates || 0);
+              const hrRounds = Number(r.hr_rounds || 0);
+              const offered = Number(r.offered_count || 0);
+
+              htmlReq += '<tr>'
+                + `<td>${escape(client)}</td>`
+                + `<td>${escape(reqName)}</td>`
+                + `<td>${escape(clientPoc)}</td>`
+                + `<td>${escape(assigned)}</td>`
+                + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escape(reqId)}" data-reqname="${escape(reqName)}" data-counttype="total">${totalCandidates}</a></td>`
+                + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escape(reqId)}" data-reqname="${escape(reqName)}" data-counttype="added">${added7}</a></td>`
+                + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escape(reqId)}" data-reqname="${escape(reqName)}" data-counttype="not_rejected">${notRejected}</a></td>`
+                + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escape(reqId)}" data-reqname="${escape(reqName)}" data-counttype="r2">${r2Candidates}</a></td>`
+                + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escape(reqId)}" data-reqname="${escape(reqName)}" data-counttype="r3">${r3Candidates}</a></td>`
+                + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escape(reqId)}" data-reqname="${escape(reqName)}" data-counttype="hr">${hrRounds}</a></td>`
+                + `<td style="text-align:right"><a href="#" class="count-link" data-reqid="${escape(reqId)}" data-reqname="${escape(reqName)}" data-counttype="offered">${offered}</a></td>`
+                + '</tr>';
+            });
+
+            htmlReq += '</tbody></table></div>';
+
+            if (popupContent) popupContent.innerHTML = htmlReq;
+
+            if (win._popupClickHandler && typeof win._popupClickHandler === 'function') {
+              try { win.document.removeEventListener('click', win._popupClickHandler); } catch (er) { /* ignore */ }
+            }
+
+            win._popupClickHandler = function popupClickHandler(e) {
+              const tgt = (e.target && e.target.closest) ? e.target : (e.target && e.target.parentElement) ? e.target.parentElement : e.target;
+              const a = tgt && tgt.closest && tgt.closest('.count-link');
+              if (!a) return;
+              e.preventDefault();
+              const reqId = a.getAttribute('data-reqid');
+              const reqName = a.getAttribute('data-reqname');
+              const countType = a.getAttribute('data-counttype') || a.getAttribute('data-count-Type') || (a.dataset && a.dataset.counttype);
+              const openerFn = (typeof openCandidatesListInPopup === 'function') ? openCandidatesListInPopup : (win.opener && typeof win.opener.openCandidatesListInPopup === 'function') ? win.opener.openCandidatesListInPopup : null;
+              if (openerFn) {
+                openerFn(win, reqId, reqName, countType);
+              } else {
+                console.error('openCandidatesListInPopup function is not available to popup.');
+              }
+            };
+
+            win.document.addEventListener('click', win._popupClickHandler);
+
+          } catch (err) {
+            if (popupContent) popupContent.innerHTML = `<div style="color:#c00">Failed to load data: ${escape(err.message || '')}</div>`;
+            console.error(err);
+          }
+        });
+      }
+
+    } catch (err) {
+      win.document.getElementById('popup-content').innerHTML = `<div style="color:#c00">Failed to load data: ${escapeHtml(err.message || '')}</div>`;
+      console.error(err);
+    }
+  }
+
+  loadClients();
+});
+</script>
+
+{% endblock %}

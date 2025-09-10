@@ -120,6 +120,7 @@
       <a href="{{ url_for('users') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-people"></i> User Management</a>
       {% endif %}
       <button id="refreshBtn" class="btn btn-outline-secondary btn-sm">Refresh</button>
+      <button id="openClientPipelineBtn" class="btn btn-primary ms-2">Client Pipeline</button>
       <button id="openReqPipelineBtn" class="btn btn-primary ms-2">Requirement Pipeline</button>
       <button id="openRecruiterPipelineBtn" class="btn btn-primary ms-2">Recruiter Pipeline</button>
 
@@ -721,6 +722,11 @@ document.getElementById('drillContent')?.addEventListener('click', async (ev)=>{
     content.classList.remove('d-none');
     content.innerHTML = "<div class='p-3 text-danger'>Failed to load.</div>";
   }
+});
+
+// Header button: open Client Pipeline (new page)
+document.getElementById('openClientPipelineBtn')?.addEventListener('click', ()=>{
+  window.location.href = '/pipeline-data';
 });
 
 
