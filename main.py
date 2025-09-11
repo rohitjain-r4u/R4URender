@@ -407,17 +407,6 @@ def requirements():
             params = []
 
             # Role-restricted view for recruiters: show only records where their username appears in CSV
-            if session.get('role') == 'recruiter':
-                me_username = session.get('username')
-                if not me_username:
-                    cur.execute("SELECT username FROM users WHERE id = %s", (session['user_id'],))
-                    row = cur.fetchone()
-                    me_username = row.get('username') if row else None
-                    session['username'] = me_username
-                if me_username:
-                    where_clauses.append("r.assigned_to ILIKE %s")
-                    params.append(f"%{me_username}%")
-
             if status_filter:
                 where_clauses.append("r.status = %s")
                 params.append(status_filter)
@@ -757,19 +746,6 @@ def requirement_candidates(req_id):
                 return redirect(url_for('requirements'))
 
             # recruiter: ensure they can view candidates for requirements assigned to them
-            if session.get('role') == 'recruiter':
-                me = session.get('username')
-                if not me:
-                    cur.execute("SELECT username FROM users WHERE id = %s", (session['user_id'],))
-                    r = cur.fetchone()
-                    me = r.get('username') if r else None
-                    session['username'] = me
-                if me:
-                    assigned_csv = (req.get('assigned_to') or '').lower()
-                    if me.lower() not in assigned_csv:
-                        flash('You do not have access to candidates for this requirement', 'danger')
-                        return redirect(url_for('requirements'))
-
             base = "SELECT * FROM candidates WHERE requirement_id = %s"
             params = [req_id]
 
@@ -893,13 +869,6 @@ def add_candidate(req_id):
                 return redirect(url_for('requirements'))
 
             # recruiter permission check
-            if session.get('role') == 'recruiter':
-                me = session.get('username')
-                assigned_csv = (req.get('assigned_to') or '').lower()
-                if me and me.lower() not in assigned_csv:
-                    flash('You do not have access to add candidates for this requirement', 'danger')
-                    return redirect(url_for('requirements'))
-
             if request.method == 'POST':
                 data, errors = validate_candidate_form(request.form)
                 if errors:
@@ -986,13 +955,6 @@ def edit_candidate(cand_id):
                 flash('Requirement not found', 'danger')
                 return redirect(url_for('requirements'))
 
-            if session.get('role') == 'recruiter':
-                me = session.get('username')
-                assigned_csv = (req.get('assigned_to') or '').lower()
-                if me and me.lower() not in assigned_csv:
-                    flash('You do not have access to edit candidates for this requirement', 'danger')
-                    return redirect(url_for('requirements'))
-
             if request.method == 'POST':
                 data, errors = validate_candidate_form(request.form)
                 if errors:
@@ -1069,13 +1031,6 @@ def view_candidate(cand_id):
                 return redirect(url_for('requirements'))
 
             # recruiter permission check
-            if session.get('role') == 'recruiter':
-                me = session.get('username')
-                assigned_csv = (cand.get('assigned_to') or '').lower()
-                if me and me.lower() not in assigned_csv:
-                    flash('You do not have access to view this candidate', 'danger')
-                    return redirect(url_for('requirements'))
-
             # Normalize phones / emails to lists
             cand['phones'] = normalize_list_field(cand.get('phones'))
             cand['emails'] = normalize_list_field(cand.get('emails'))
@@ -1099,12 +1054,6 @@ def candidate_partial(cand_id):
                 return ("<div class='p-3'>Candidate not found</div>", 404)
 
             # recruiter permission check
-            if session.get('role') == 'recruiter':
-                me = session.get('username')
-                assigned_csv = (cand.get('assigned_to') or '').lower()
-                if me and me.lower() not in assigned_csv:
-                    return ("<div class='p-3'>You do not have access to view this candidate.</div>", 403)
-
             cand['phones'] = normalize_list_field(cand.get('phones'))
             cand['emails'] = normalize_list_field(cand.get('emails'))
             return render_template('candidate_detail_partial.html', candidate=cand)
