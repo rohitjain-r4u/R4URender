@@ -1,0 +1,1115 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+:root {
+  --primary: #2563eb;
+  --primary-light: #3b82f6;
+  --primary-dark: #1e40af;
+  --gray-bg: #f5f7fa;
+  --header-bg: #f1f5f9;
+  --card-bg: #fff;
+  --border: #e5e7eb;
+  --muted: #6b7280;
+  --accent: #e0e7ff;
+  --shadow: 0 2px 12px rgba(40,60,120,.07);
+  --radius: 12px;
+  --row-hover: #f9fafb;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #f59e0b;
+}
+
+/* Force header styling with high specificity + !important */
+
+/* Ensure header takes full width and no gaps around it */
+
+html, body { margin: 0; padding: 0; }
+
+/* Nudge page container under header on this page */
+.rfu-page .container { margin-top: 0 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rfu-page">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<style>
+
+/* === FINAL FORCED HEADER STYLES (high-specificity + !important) === */
+/* Uses both CSS specificity and inline-style fallback via script to guarantee effect. */
+
+/* Reduce chance of other rules overriding */
+
+/* === Force override for base header strip on this page === */
+
+/* === Force navbar strip styles to override Bootstrap/base === */
+
+:root {
+  --primary: #2563eb;
+  --primary-light: #3b82f6;
+  --primary-dark: #1e40af;
+  --gray-bg: #f5f7fa;
+  --header-bg: #f1f5f9;
+  --card-bg: #fff;
+  --border: #e5e7eb;
+  --muted: #6b7280;
+  --accent: #e0e7ff;
+  --shadow: 0 2px 12px rgba(40,60,120,.07);
+  --radius: 12px;
+  --row-hover: #f9fafb;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #f59e0b;
+}
+
+body, .rfu-page .container { font-family: 'Inter','Segoe UI',Arial,sans-serif; background: var(--gray-bg); }
+.rfu-page .container { max-width: 1260px; margin: 28px auto; padding: 0 16px; }
+
+/* Ensure no empty gap above header (global rule: visual only) */
+.rfu-page .container > *:first-child { margin-top: 0 !important; }
+.page-header { background: linear-gradient(90deg, var(--primary-light), var(--primary)); border-radius: var(--radius); padding: 1.5rem 2rem; margin-bottom: 1.8rem; box-shadow: var(--shadow); border: 1px solid var(--border); color:#fff; margin-top:0!important; }
+.page-header .title-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.page-header h2 { margin:0; font-size:1.5rem; font-weight:700; color: #fff !important; }
+.page-actions { display:flex; flex-wrap: wrap; gap: 0.6rem; }
+.page-actions .btn { font-size: 0.95rem; border-radius: var(--radius); padding: 8px 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.page-actions .btn-primary { background: var(--primary); color: #fff; border: none; }
+.page-actions .btn-primary:hover { background: var(--primary-dark); }
+.page-actions .btn-outline-secondary { background:#fff; border:1.5px solid var(--border); color: var(--muted);} 
+.page-actions .btn-outline-secondary:hover { background: var(--row-hover); }
+.page-header small { color: #fff !important; font-size: 0.95rem; margin-left: 8px; }
+
+.search-card { background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border); padding: 1rem 1.2rem; margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.8rem; }
+.search-card label { font-size: 0.82rem; font-weight:700; color: var(--primary-dark); display:block; margin-bottom: 3px; }
+.search-card .form-control { border-radius: var(--radius); border: 1.5px solid var(--border); font-size: 0.95rem; width: 200px; background: #f8fafc; }
+.search-card .form-control:focus { border-color: var(--primary); background: #fff; }
+
+.filter-chip { display:inline-flex; align-items:center; gap:4px; background: var(--primary); color:#fff; padding:4px 10px; border-radius:9999px; font-size:0.8rem; }
+.filter-chip a { color:#fff; margin-left:4px; text-decoration:none; font-weight:700; }
+
+.table-card { background: var(--card-bg); box-shadow: var(--shadow); border-radius: var(--radius); border: 1px solid var(--border); padding: 0.6rem; }
+.table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.table th, .table td { padding: 4px 6px !important; font-size: 0.9rem; height:20px; border-bottom: 1px solid var(--border); max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.table td:hover { white-space: normal; overflow: visible; text-overflow: unset; }
+.table thead th { background: var(--header-bg); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; color: var(--primary-dark); position: sticky; top: 0; z-index: 1; }
+.table-hover tbody tr:hover { background-color: #eef4ff; transition: background 0.2s; }
+
+.badge { font-size: 0.8rem; font-weight:600; padding: 0.3em 0.8em; border-radius:9999px; }
+.bg-success { background: var(--success); color: #fff; }
+.bg-warning { background: var(--warning); color: #111; }
+.bg-danger { background: var(--danger); color: #fff; }
+.bg-secondary { background: var(--muted); color:#fff; }
+
+.actions .btn { border:none; background:none; padding:0.35rem; color:var(--muted); border-radius: var(--radius);} 
+.actions .btn:hover { color:var(--primary-dark); background: var(--accent); }
+
+.selection-counter { margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--muted); font-weight:600; display:none; }
+
+#reset-btn { background: var(--success) !important; color:#fff !important; border:none !important; }
+#add-candidate-btn, #import-btn { background: var(--success) !important; color: #fff !important; border: none !important; }
+#export-btn, #sample-btn { background: var(--primary-light) !important; color:#fff !important; border:none !important; }
+#export-btn:hover, #import-btn:hover, #sample-btn:hover { background: var(--primary-dark) !important; }
+
+/* Inline status editor */
+.inline-status-editor{position:absolute; background:#fff; border:1px solid var(--border); box-shadow: var(--shadow); padding:8px; border-radius:8px; z-index:2000; width:360px;}
+.inline-status-editor select{width:100%; margin-bottom:6px;}
+.inline-status-editor .actions{display:flex; gap:6px; justify-content:flex-end;}
+
+/* Side panel */
+#sidePanel { position: fixed; top: 0; right: -50%; width: 50%; height: 100%; background: #fff; box-shadow: -2px 0 8px rgba(0,0,0,0.1); overflow-y: auto; transition: right 0.3s ease; z-index: 1050; padding: 1rem; }
+#sidePanel.active { right: 0; }
+#closeSidePanel { position:absolute; top:10px; right:10px; z-index:1100; }
+
+/* === MERGED PATCH: UI tweaks === */
+/* Remove any top whitespace above header */
+html, body { margin: 0 !important; padding: 0 !important; }
+.rfu-page .container { margin-top: 0 !important; }
+/* Normalize header/title font sizes so "Java for Provar Solution" shows uniform */
+.section-title, .section-title span, .section-title small, .page-header h2, .page-header small {
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  color: #fff !important;
+}
+/* Force candidate table columns to 130px with ellipsis for overflow; actions column stays auto */
+#candidatesTable th, #candidatesTable td {
+  max-width: 130px !important;
+  width: 130px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+#candidatesTable th.actions-col, #candidatesTable td.actions {
+  width: auto !important;
+  max-width: none !important;
+  white-space: nowrap !important;
+}
+@media (max-width: 768px) {
+  #candidatesTable th, #candidatesTable td { white-space: normal !important; width: auto !important; max-width: none !important; }
+}
+/* small spacing for new dropdowns */
+.search-card .form-select { width: 180px; display: inline-block; margin-right: 6px; }
+
+/* EMAIL HOVER & COPY BUTTON - added by patch */
+#candidatesTable td.email-cell { position: relative; }
+#candidatesTable tr:hover td.email-cell {
+  white-space: normal !important;
+  overflow: visible !important;
+  max-width: none !important;
+  background: inherit !important;
+  z-index: 3;
+}
+#candidatesTable td.email-cell .copy-email-btn {
+  display: none;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+#candidatesTable tr:hover td.email-cell .copy-email-btn { display: inline-block; }
+#candidatesTable td.email-cell .email-content { display: inline-block; max-width: 100%; }
+
+/* === Minimal Patch v2: Email hover + Copy + Dropdown line break === */
+/* Strong override in case table cells had nowrap */
+#candidatesTable tbody tr:hover td { white-space: normal !important; overflow: visible !important; }
+/* Limit the extra padding/positioning only to the Email column (4th) */
+#candidatesTable td:nth-child(4) { position: relative; padding-right: 56px !important; }
+/* Copy button visibility/placement in the Email column */
+#candidatesTable td:nth-child(4) .copy-btn,
+#candidatesTable td:nth-child(4) .copy-email-btn {
+  display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  padding: 2px 6px; font-size: 0.7rem; z-index: 5;
+}
+#candidatesTable tr:hover td:nth-child(4) .copy-btn,
+#candidatesTable tr:hover td:nth-child(4) .copy-email-btn { display: inline-block; }
+
+/* Flex breaker + ordering so selects follow inputs, then buttons */
+.search-card { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.search-card .break { flex-basis: 100%; height: 0; }
+.search-card button { order: 3; }
+.search-card input#name, .search-card input#phone, .search-card input#email, .search-card input#location { order: 1; }
+.search-card select#calling_status, .search-card select#profile_status { order: 2; }
+
+</style>
+
+<div class="container">
+  <div class="page-header">
+    <div class="title-row">
+      <h2 class="section-title"><span class="role">{{ requirement.requirement_name or '' }}</span> <small>for {{ requirement.client_name or '' }}</small></h2>
+      <div class="page-actions">
+        <a href="{{ url_for('add_candidate', req_id=requirement.id) }}" class="btn btn-success" id="add-candidate-btn"><i class="bi bi-plus-lg"></i> Add New Candidate</a>
+        <button id="export-btn" class="btn btn-outline-secondary"><i class="bi bi-download"></i> Export XLSX</button>
+        <a href="{{ url_for('import_bp.import_page', req_id=requirement.id) }}" class="btn btn-outline-secondary" id="import-btn"><i class="bi bi-upload"></i> Import Excel/CSV</a>
+        <a href="{{ url_for('download_candidate_template', req_id=requirement.id) }}" class="btn btn-outline-secondary" id="sample-btn"><i class="bi bi-file-earmark-spreadsheet"></i> Sample Template</a>
+      </div>
+    </div>
+  </div>
+
+  <form id="search-form" class="search-card" method="GET" action="{{ url_for('requirement_candidates', req_id=requirement.id) }}">
+    <div><label for="name">Name</label><input id="name" type="text" name="name" class="form-control" value="{{ name or '' }}"></div>
+    <div><label for="phone">Phone</label><input id="phone" type="text" name="phone" class="form-control" value="{{ phone or '' }}"></div>
+    <div><label for="email">Email</label><input id="email" type="text" name="email" class="form-control" value="{{ email or '' }}"></div>
+    <div><label for="location">Location</label><input id="location" type="text" name="location" class="form-control" value="{{ location or '' }}"></div>
+    
+<!-- Filters: Calling status + Profile status on next line -->
+<div class="break"></div>
+<div style="display:inline-block; margin-right:8px;">
+  <label for="calling_status" style="display:block; font-size:0.78rem; font-weight:600; margin-bottom:3px;">Calling status</label>
+  <select name="calling_status" id="calling_status" class="form-select form-select-sm">
+    <option value="" {% if not calling_status %}selected{% endif %}>Any Calling status</option>
+    <option value="Screen Select" {% if calling_status=='Screen Select' %}selected{% endif %}>Screen Select</option>
+    <option value="CNS" {% if calling_status=='CNS' %}selected{% endif %}>CNS</option>
+    <option value="Not interested" {% if calling_status=='Not interested' %}selected{% endif %}>Not interested</option>
+    <option value="Not Reachable" {% if calling_status=='Not Reachable' %}selected{% endif %}>Not Reachable</option>
+    <option value="Rejected" {% if calling_status=='Rejected' %}selected{% endif %}>Rejected</option>
+  </select>
+</div>
+
+<div style="display:inline-block; margin-right:8px;">
+  <label for="profile_status" style="display:block; font-size:0.78rem; font-weight:600; margin-bottom:3px;">Profile status</label>
+  <select name="profile_status" id="profile_status" class="form-select form-select-sm">
+    <option value="" {% if not profile_status %}selected{% endif %}>Any Profile status</option>
+    <option value="Profile shared with client" {% if profile_status=='Profile shared with client' %}selected{% endif %}>Profile shared with client</option>
+    <option value="Review Pending by client" {% if profile_status=='Review Pending by client' %}selected{% endif %}>Review Pending by client</option>
+    <option value="R2 Pending" {% if profile_status=='R2 Pending' %}selected{% endif %}>R2 Pending</option>
+    <option value="R3 Pending" {% if profile_status=='R3 Pending' %}selected{% endif %}>R3 Pending</option>
+    <option value="R1 to be schedule" {% if profile_status=='R1 to be schedule' %}selected{% endif %}>R1 to be schedule</option>
+    <option value="R2 scheduled" {% if profile_status=='R2 scheduled' %}selected{% endif %}>R2 scheduled</option>
+    <option value="R3 scheduled" {% if profile_status=='R3 scheduled' %}selected{% endif %}>R3 scheduled</option>
+    <option value="R1 scheduled" {% if profile_status=='R1 scheduled' %}selected{% endif %}>R1 scheduled</option>
+    <option value="F2F Scheduled" {% if profile_status=='F2F Scheduled' %}selected{% endif %}>F2F Scheduled</option>
+    <option value="Screen Rejected" {% if profile_status=='Screen Rejected' %}selected{% endif %}>Screen Rejected</option>
+    <option value="R1 FBP" {% if profile_status=='R1 FBP' %}selected{% endif %}>R1 FBP</option>
+    <option value="R2 FBP" {% if profile_status=='R2 FBP' %}selected{% endif %}>R2 FBP</option>
+    <option value="R3 FBP" {% if profile_status=='R3 FBP' %}selected{% endif %}>R3 FBP</option>
+    <option value="HR Round" {% if profile_status=='HR Round' %}selected{% endif %}>HR Round</option>
+    <option value="Offered" {% if profile_status=='Offered' %}selected{% endif %}>Offered</option>
+    <option value="R2 Rejected" {% if profile_status=='R2 Rejected' %}selected{% endif %}>R2 Rejected</option>
+    <option value="R3 Rejected" {% if profile_status=='R3 Rejected' %}selected{% endif %}>R3 Rejected</option>
+    <option value="R1 Rejected" {% if profile_status=='R1 Rejected' %}selected{% endif %}>R1 Rejected</option>
+  </select>
+</div>
+<button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Search</button>
+    <button type="button" id="reset-btn" class="btn btn-outline-secondary btn-reset"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+    <div class="ms-auto d-flex flex-wrap">
+      {% if name %}<span class="filter-chip">Name: {{ name }} <a href="#" class="clear-filter" data-param="name">×</a></span>{% endif %}
+      {% if phone %}<span class="filter-chip">Phone: {{ phone }} <a href="#" class="clear-filter" data-param="phone">×</a></span>{% endif %}
+      {% if email %}<span class="filter-chip">Email: {{ email }} <a href="#" class="clear-filter" data-param="email">×</a></span>{% endif %}
+      {% if location %}<span class="filter-chip">Location: {{ location }} <a href="#" class="clear-filter" data-param="location">×</a></span>{% endif %}
+    </div>
+  </form>
+
+  <div id="selection-counter" class="selection-counter">0 candidates selected</div>
+
+  <div class="table-card">
+    {% if candidates %}
+    <div class="table-responsive">
+      <table id="candidatesTable" class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="select-all"></th>
+            <th>Job Title</th><th>Candidate Name</th><th>Total Experience</th>
+            <th>Phone Number</th><th>Email ID</th><th>Notice Period</th><th>Current Location</th>
+            <th>Calling Status</th><th>Profile Status</th><th>Comments</th><th>Added By</th><th class="actions-col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in candidates %}
+          <tr data-id="{{ c.id }}" data-added-ts="{{ (c.added_ts or 0) if c is defined and c.added_ts is defined else 0 }}">
+            <td><input type="checkbox" class="row-checkbox" value="{{ c.id }}"></td>
+            <td>{{ c.job_title or '-' }}</td>
+            <td>
+              <a href="#" class="data-view candidate-link-new" data-id="{{ c.id }}">{{ c.candidate_name or '-' }}</a>
+            </td>
+            <td>{{ c.total_experience or '-' }}</td>
+            <td>
+              {{ c.phones | join(', ') if c.phones else '-' }}
+              {% if c.phones %}
+                <button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-copy="{{ c.phones | join(', ') }}"><i class="bi bi-clipboard"></i></button>
+              {% endif %}
+            </td>
+            <td>
+              {{ c.emails | join(', ') if c.emails else '-' }}
+              {% if c.emails %}
+                <button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-copy="{{ c.emails | join(', ') }}"><i class="bi bi-clipboard"></i></button>
+              {% endif %}
+            </td>
+            <td>{{ c.notice_period or '-' }}</td>
+            <td>{{ c.current_location or '-' }}</td>
+            <td>{{ c.calling_status or '-' }}</td>
+            <td>{{ c.profile_status if c.profile_status else '-' }}</td>
+            <td>{{ c.comments or '-' }}</td>
+            <td>{% if c.added_by_name %}{{ c.added_by_name }}{% elif c.added_by and c.added_by.username %}{{ c.added_by.username }}{% elif c.added_by %}{{ c.added_by }}{% else %}&mdash;{% endif %}</td>
+            <td class="actions">
+              <button class="btn view-candidate view-btn-new" data-id="{{ c.id }}" data-bs-toggle="modal" data-bs-target="#candidateModal"><i class="bi bi-eye"></i></button>
+              <a href="{{ url_for('edit_candidate', cand_id=c.id) }}" class="btn"><i class="bi bi-pencil"></i></a>
+              <form method="POST" action="{{ url_for('delete_candidate', cand_id=c.id) }}" onsubmit="return confirm('Delete this candidate?');" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn text-danger"><i class="bi bi-trash"></i></button>
+              </form>
+              <button class="btn status-popover" data-id="{{ c.id }}" data-profile="{{ c.profile_status or '' }}" data-calling="{{ c.calling_status or '' }}" data-idate="{{ c.interview_date or '' }}" data-itime="{{ c.interview_time or '' }}"><i class="bi bi-ui-checks"></i></button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <nav aria-label="Candidate pagination">
+        {% if paginator.pages > 1 %}
+        <ul class="pagination justify-content-center mt-3">
+          {% set links = paginator.page_links() %}
+          {% if links.prev %}
+            <li class="page-item"><a class="page-link" href="{{ links.prev }}">Prev</a></li>
+          {% endif %}
+  
+          {% for p, url, current in paginator.windowed_pages(window=2) %}
+            <li class="page-item {% if current %}active{% endif %}">
+              <a class="page-link" href="{{ url }}">{{ p }}</a>
+            </li>
+          {% endfor %}
+
+          {% if links.next %}
+             <li class="page-item"><a class="page-link" href="{{ links.next }}">Next</a></li>
+          {% endif %}
+      </ul>
+      {% endif %}
+   </nav>
+
+      </nav>
+    </div>
+    {% else %}
+      <div class="table-empty">No candidates found</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Candidate View Modal -->
+<div class="modal fade" id="candidateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Candidate Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0" id="candidateModalContent"><div class="p-4">Loading...</div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Side Panel -->
+<div id="sidePanel">
+  <button id="closeSidePanel" class="btn btn-sm btn-outline-secondary">×</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // Reset button
+  const resetBtn = document.getElementById('reset-btn');
+  if (resetBtn) resetBtn.addEventListener('click', ()=> window.location.href = window.location.pathname);
+
+  // Clear individual filters (Name/Phone/Email/Location)
+  document.querySelectorAll('.clear-filter').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const param = a.dataset.param;
+      const url = new URL(window.location.href);
+      url.searchParams.delete(param);
+      // also reset page on filter clear
+      url.searchParams.delete('page');
+      window.location.href = url.toString();
+    });
+  });
+
+  // Candidate name click → open SIDE PANEL
+  document.querySelectorAll('.data-view').forEach(link=>{
+    link.addEventListener('click', async function(e){
+      e.preventDefault();
+      const id = this.dataset.id;
+      let sidePanel = document.getElementById('sidePanel');
+      sidePanel.classList.add('active');
+      sidePanel.innerHTML = '<button id="closeSidePanel" class="btn btn-sm btn-outline-secondary" style="position:absolute;top:10px;right:10px;z-index:1100;">×</button><div class="p-4">Loading...</div>';
+      const url = "{{ url_for('candidate_partial', cand_id=0) }}".replace('/0/', `/${id}/`);
+      const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      // keep close button at top-right
+      sidePanel.innerHTML = '<button id="closeSidePanel" class="btn btn-sm btn-outline-secondary" style="position:absolute;top:10px;right:10px;z-index:1100;">×</button>' + await resp.text();
+      document.getElementById('closeSidePanel').addEventListener('click', ()=> sidePanel.classList.remove('active'));
+    });
+  });
+
+  // Eye icon → open MODAL
+  document.querySelectorAll('.view-candidate').forEach(btn=>{
+    btn.addEventListener('click', async function(){
+      const id = this.dataset.id;
+      const url = "{{ url_for('candidate_partial', cand_id=0) }}".replace('/0/', `/${id}/`);
+      const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      document.getElementById('candidateModalContent').innerHTML = await resp.text();
+    });
+  });
+
+  
+
+// ===== SP2: Independent inline status popover (safe & scoped) =====
+(function(){
+  // Do not run twice
+  if (window.__sp2InlineInit) return; window.__sp2InlineInit = true;
+
+  const STYLES = `.sp2-inline-editor{position:absolute;background:#fff;border:1px solid var(--border);
+    box-shadow: var(--shadow);padding:10px;border-radius:10px;z-index:4000;width:360px}
+    .sp2-inline-editor label{font-size:.8rem;font-weight:600;margin-bottom:4px;display:block}
+    .sp2-inline-editor .form-select,.sp2-inline-editor .form-control{margin-bottom:8px}
+    .sp2-inline-editor .actions{display:flex;gap:8px;justify-content:flex-end}`;
+  if (!document.getElementById('sp2-inline-style')){
+    const st = document.createElement('style'); st.id='sp2-inline-style'; st.textContent = STYLES; document.head.appendChild(st);
+  }
+
+  const CALLING_LIST = ["Screen Select","CNS","Not interested","Not Reachable","Rejected"];
+  const PROFILE_LIST = ["Profile shared with client","Review Pending by client","R2 Pending","R3 Pending","R1 to be schedule",
+                        "R2 scheduled","R3 scheduled","R1 scheduled","F2F Scheduled","Screen Rejected","R1 FBP","R2 FBP","R3 FBP","HR Round","Offered",
+                        "R2 Rejected","R3 Rejected","R1 Rejected"];
+
+  let openEditor = null;
+  function closeEditor(){ if(openEditor){ openEditor.remove(); openEditor=null; } }
+
+  // Close when clicking outside (but ignore clicks on the status icon itself)
+  document.addEventListener('click', function(e){
+    const onIcon = e.target.closest('.status-popover');
+    const inside  = openEditor && openEditor.contains(e.target);
+    if (openEditor && !inside && !onIcon){ closeEditor(); }
+  });
+
+  // Delegated handler so it works for any row
+  document.addEventListener('click', function(ev){
+    const btn = ev.target.closest('.status-popover');
+    if(!btn) return;
+    ev.preventDefault();
+    closeEditor();
+
+    const id = btn.dataset.id;
+    const currentProfile = btn.dataset.profile || '';
+    const currentCalling = btn.dataset.calling || '';
+    const currentDate  = btn.dataset.idate || '';
+    const currentTime  = btn.dataset.itime || '';
+
+    // Build editor
+    const editor = document.createElement('div');
+    editor.className = 'sp2-inline-editor';
+    const callingOpts = CALLING_LIST.map(v => `<option value="${v}" ${v===currentCalling?'selected':''}>${v}</option>`).join('');
+    const profileOpts = PROFILE_LIST.map(v => `<option value="${v}" ${v===currentProfile?'selected':''}>${v}</option>`).join('');
+    editor.innerHTML = `
+      <div>
+        <label>Calling status</label>
+        <select class="form-select form-select-sm" id="sp2-calling">${callingOpts}</select>
+      </div>
+      <div>
+        <label>Profile status</label>
+        <select class="form-select form-select-sm" id="sp2-profile">${profileOpts}</select>
+      </div>
+      <div class="d-flex gap-2">
+        <div class="flex-grow-1">
+          <label>Interview date</label>
+          <input type="date" class="form-control form-control-sm" id="sp2-idate" value="${currentDate}">
+        </div>
+        <div class="flex-grow-1">
+          <label>Interview time</label>
+          <input type="time" class="form-control form-control-sm" id="sp2-itime" value="${currentTime}">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-sm btn-primary" id="sp2-save">Save</button>
+        <button class="btn btn-sm btn-danger" id="sp2-cancel">Cancel</button>
+      </div>`;
+
+    document.body.appendChild(editor);
+    openEditor = editor;
+
+    // Position (smart: right-aligned to icon, flip above if not enough room below)
+    const rect = btn.getBoundingClientRect();
+    const edW = editor.getBoundingClientRect().width || 360;
+    const edH = editor.getBoundingClientRect().height || 220;
+    let left = window.scrollX + rect.left + rect.width - edW;
+    left = Math.max(window.scrollX + 8, Math.min(left, window.scrollX + window.innerWidth - edW - 8));
+    let top = window.scrollY + rect.bottom + 6;
+    const maxY = window.scrollY + window.innerHeight - edH - 8;
+    if (top > maxY) top = Math.max(window.scrollY + 8, window.scrollY + rect.top - edH - 6);
+    editor.style.left = left + 'px';
+    editor.style.top = top + 'px';
+
+    // Wire buttons
+    editor.querySelector('#sp2-cancel').addEventListener('click', closeEditor);
+    editor.querySelector('#sp2-save').addEventListener('click', async function(){
+      const payload = {
+        calling_status: editor.querySelector('#sp2-calling').value,
+        profile_status: editor.querySelector('#sp2-profile').value,
+        interview_date: editor.querySelector('#sp2-idate').value,
+        interview_time: editor.querySelector('#sp2-itime').value
+      };
+      try{
+        const resp = await fetch(`/candidate/${id}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if(!data.ok) throw new Error('Save failed');
+
+        // Update row cells (find columns by header text to avoid index mismatches)
+        const row = btn.closest('tr');
+        if(row){
+          const ths = row.closest('table').querySelectorAll('thead th');
+          let callingIdx = -1, profileIdx = -1;
+          ths.forEach((th,i)=>{
+            const t = (th.textContent||'').trim().toLowerCase();
+            if (t.includes('calling status')) callingIdx = i;
+            if (t.includes('profile status')) profileIdx = i;
+          });
+          if (callingIdx>=0 && row.children[callingIdx]) row.children[callingIdx].textContent = payload.calling_status || '';
+          if (profileIdx>=0 && row.children[profileIdx]) row.children[profileIdx].textContent = payload.profile_status || '';
+        }
+
+        // Persist values on the icon
+        btn.dataset.calling = payload.calling_status || '';
+        btn.dataset.profile = payload.profile_status || '';
+        btn.dataset.idate   = payload.interview_date || '';
+        btn.dataset.itime   = payload.interview_time || '';
+        closeEditor();
+      }catch(err){
+        alert('Update failed');
+      }
+    });
+  });
+})();// Select-all + counter
+
+  const selectAll = document.getElementById('select-all');
+  const counter = document.getElementById('selection-counter');
+  function updateCounter(){
+    const selected = document.querySelectorAll('.row-checkbox:checked').length;
+    counter.style.display = selected>0 ? 'block' : 'none';
+    counter.textContent = selected+' candidates selected';
+  }
+  if(selectAll){ selectAll.addEventListener('change', ()=>{ document.querySelectorAll('.row-checkbox').forEach(cb=>cb.checked=selectAll.checked); updateCounter(); }); }
+  document.addEventListener('change', e=>{ if(e.target.classList.contains('row-checkbox')) updateCounter(); });
+
+  // Copy buttons with feedback
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const txt = btn.getAttribute('data-copy') || '';
+      if (!txt) return;
+      try {
+        await navigator.clipboard.writeText(txt);
+        const oldHTML = btn.innerHTML;
+        btn.innerHTML = 'Copied!';
+        btn.disabled = true;
+        setTimeout(()=>{ btn.innerHTML = oldHTML; btn.disabled = false; }, 900);
+      } catch(e) {
+        alert('Copy failed');
+      }
+    });
+  });
+
+  // Pagination (client-side), default 50 per page, sorted by added date desc if available, else by id desc
+  
+    // sort
+    rows.sort((a,b)=>{
+      const ats = Number(b.dataset.addedTs || 0) - Number(a.dataset.addedTs || 0);
+      if (ats !== 0) return ats;
+      const aid = Number(b.dataset.id || 0) - Number(a.dataset.id || 0);
+      return aid;
+    });
+    rows.forEach(r => tbody.appendChild(r)); // re-attach in sorted order
+
+    const perPage = 50;
+    const pageCount = Math.ceil(rows.length / perPage);
+    const pag = document.getElementById('pagination');
+    function render(page){
+      const start = (page-1)*perPage;
+      const end = page*perPage;
+      rows.forEach((row, i)=>{
+        row.style.display = (i>=start && i<end) ? '' : 'none';
+      });
+
+      pag.innerHTML = '';
+      // Prev
+      const prev = document.createElement('li');
+      prev.className = 'page-item'+(page===1?' disabled':'');
+      prev.innerHTML = '<a class="page-link" href="#">Previous</a>';
+      prev.onclick = (e)=>{e.preventDefault(); if(page>1) render(page-1);};
+      pag.appendChild(prev);
+      // Pages
+      for(let p=1;p<=pageCount;p++){
+        const li = document.createElement('li');
+        li.className = 'page-item'+(p===page?' active':'');
+        li.innerHTML = `<a class="page-link" href="#">${p}</a>`;
+        li.onclick = (e)=>{e.preventDefault(); render(p);};
+        pag.appendChild(li);
+      }
+      // Next
+      const next = document.createElement('li');
+      next.className = 'page-item'+(page===pageCount?' disabled':'');
+      next.innerHTML = '<a class="page-link" href="#">Next</a>';
+      next.onclick = (e)=>{e.preventDefault(); if(page<pageCount) render(page+1);};
+      pag.appendChild(next);
+    }
+    render(1);
+  });
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const exportBtn = document.getElementById("export-btn");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", async () => {
+      let selected = Array.from(document.querySelectorAll(".row-checkbox:checked")).map(cb => cb.value);
+
+      if (!selected.length) {
+        if (!confirm("No candidates selected. Do you want to export ALL candidates on this page?")) {
+          return;
+        }
+        selected = Array.from(document.querySelectorAll(".row-checkbox")).map(cb => cb.value);
+      }
+
+      const token = document.querySelector("meta[name='csrf-token']").content;
+
+      try {
+        const resp = await fetch("/export_candidates", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "X-CSRFToken": token
+          },
+          body: JSON.stringify({ ids: selected })
+        });
+        if (!resp.ok) {
+          alert("Export failed");
+          return;
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "candidates_export.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Export error:", err);
+        alert("Something went wrong while exporting.");
+      }
+    });
+  }
+});
+</script>
+
+<script>
+  const selectAll = document.getElementById('select-all');
+  const counter = document.getElementById('selection-counter');
+
+  function updateCounter() {
+    const selected = document.querySelectorAll('.row-checkbox:checked').length;
+    counter.style.display = selected > 0 ? 'block' : 'none';
+    counter.textContent = selected + ' candidates selected';
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', () => {
+      document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = selectAll.checked);
+      updateCounter();
+    });
+  }
+
+  document.addEventListener('change', e => {
+    if (e.target.classList.contains('row-checkbox')) {
+      updateCounter();
+    }
+  });
+</script>
+
+</div>
+
+<style id="rfuHeader-hardfix-final">
+/* Hard lock header to base.html colors on THIS page only */
+nav#rfuHeader.navbar.app-header {
+  background: #2f3b45 !important;
+  border-bottom: 2px solid #212a31 !important;
+  box-shadow: 0 6px 22px rgba(0,0,0,.18) !important;
+}
+nav#rfuHeader .navbar-brand.brand { color: #d97706 !important; font-weight: 800; letter-spacing: .2px; }
+nav#rfuHeader .navlink,
+nav#rfuHeader .navlink:link,
+nav#rfuHeader .navlink:visited { color: #e9eef2 !important; }
+nav#rfuHeader .navlink span { color: #e9eef2 !important; }
+nav#rfuHeader .navlink .bi { color: #11d4c7 !important; }
+nav#rfuHeader .navlink:hover,
+nav#rfuHeader .navlink:focus { background: rgba(255,255,255,.06) !important; color: #fff !important; }
+nav#rfuHeader .navbar-toggler { border-color: rgba(255,255,255,.25) !important; }
+nav#rfuHeader .navbar-toggler .navbar-toggler-icon { filter: invert(1) grayscale(1) !important; }
+</style>
+
+{% endblock %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  // NEW handlers (safe, independent)
+  // Candidate name → side panel (new isolated handler)
+  document.querySelectorAll(".candidate-link-new").forEach(link => {
+    link.addEventListener("click", async function (e) {
+      e.preventDefault();
+      const id = this.dataset.id;
+      if (!id) return;
+      try {
+        const sidePanel = document.getElementById('sidePanel');
+        if (!sidePanel) {
+          console.warn('sidePanel element not found; cannot show candidate side panel');
+          return;
+        }
+        sidePanel.classList.add('active');
+        sidePanel.innerHTML = '<button id="closeSidePanel" class="btn btn-sm btn-secondary" style="position:absolute;top:10px;right:10px;z-index:1100;">×</button><div class="p-4">Loading...</div>';
+        const url = "{{ url_for('candidate_partial', cand_id=0) }}".replace('/0/', `/${id}/`);
+        const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        sidePanel.innerHTML = '<button id="closeSidePanel" class="btn btn-sm btn-secondary" style="position:absolute;top:10px;right:10px;z-index:1100;">×</button>' + await resp.text();
+        const closeBtn = document.getElementById('closeSidePanel');
+        if (closeBtn) closeBtn.addEventListener('click', ()=> sidePanel.classList.remove('active'));
+      } catch (err) {
+        console.error('Error loading side panel content', err);
+      }
+    });
+  });
+
+  // Eye button → modal (new isolated handler)
+  document.querySelectorAll(".view-btn-new").forEach(btn => {
+    btn.addEventListener("click", async function (e) {
+      // allow existing data-bs-toggle to work; but ensure content is loaded first
+      const id = this.dataset.id;
+      if (!id) return;
+      try {
+        const url = "{{ url_for('candidate_partial', cand_id=0) }}".replace('/0/', `/${id}/`);
+        const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const contentEl = document.getElementById('candidateModalContent');
+        if (contentEl) contentEl.innerHTML = await resp.text();
+        try {
+          // show bootstrap modal explicitly in case automatic toggle is absent
+          const modalEl = document.getElementById('candidateModal');
+          if (modalEl) {
+            const m = new bootstrap.Modal(modalEl);
+            m.show();
+          }
+        } catch(e) { /* ignore if bootstrap not available */ }
+      } catch (err) {
+        console.error('Error loading modal content', err);
+      }
+    });
+  });
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  try {
+    const rows = document.querySelectorAll('#candidatesTable tbody tr');
+    rows.forEach(tr => {
+      // find a td that likely contains an email - prefer td.email-cell class
+      let emailTd = tr.querySelector('td.email-cell');
+      if (!emailTd) {
+        // fallback: find first td containing '@' text
+        const tds = Array.from(tr.querySelectorAll('td'));
+        emailTd = tds.find(td => td.innerText && td.innerText.includes('@'));
+      }
+      if (!emailTd) return;
+      // avoid adding duplicate button
+      if (emailTd.querySelector('.copy-email-btn')) return;
+      // capture the email text (trim, but don't include button text)
+      const emailText = emailTd.innerText.trim();
+      // create copy button
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-sm btn-outline-secondary copy-email-btn';
+      btn.textContent = 'Copy';
+      btn.setAttribute('data-copy', emailText);
+      // ensure email content kept in span for layout
+      if (!emailTd.querySelector('.email-content')) {
+        const span = document.createElement('span');
+        span.className = 'email-content';
+        // move current nodes into span
+        while (emailTd.firstChild) {
+          const child = emailTd.firstChild;
+          // stop if encountering existing button (safety)
+          if (child.classList && child.classList.contains('copy-email-btn')) break;
+          span.appendChild(child);
+        }
+        emailTd.appendChild(span);
+      }
+      // append button
+      emailTd.appendChild(btn);
+    });
+
+    // global click handler for copy buttons
+    document.addEventListener('click', function(e){
+      const btn = e.target.closest('.copy-email-btn');
+      if (!btn) return;
+      const text = btn.getAttribute('data-copy') || btn.parentElement.innerText.trim();
+      if (!navigator.clipboard) {
+        alert('Clipboard API not available');
+        return;
+      }
+      navigator.clipboard.writeText(text).then(function(){
+        const old = btn.innerHTML;
+        btn.innerHTML = 'Copied';
+        btn.disabled = true;
+        setTimeout(function(){ btn.innerHTML = old; btn.disabled = false; }, 900);
+      }).catch(function(){
+        alert('Copy failed');
+      });
+    });
+  } catch (err) {
+    console.error('Email copy init error:', err);
+  }
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // Email copy auto-inject (safe: only if no existing copy button found in the 4th cell)
+  try {
+    document.querySelectorAll('#candidatesTable tbody tr').forEach(function(row){
+      var td = row.querySelector('td:nth-child(4)');
+      if (!td) return;
+      var hasBtn = td.querySelector('.copy-email-btn, .copy-btn');
+      var text = (td.textContent || '').trim();
+      if (!hasBtn && text && text !== '-' ) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-sm btn-outline-secondary copy-email-btn copy-btn-email-auto';
+        btn.textContent = 'Copy';
+        btn.setAttribute('data-copy', text);
+        btn.style.marginLeft = '6px';
+        td.appendChild(btn);
+      }
+    });
+  } catch (e) { /* no-op */ }
+
+  // Single delegated handler for any copy buttons
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('.copy-email-btn, .copy-btn');
+    if (!btn) return;
+    var txt = btn.getAttribute('data-copy') || '';
+    if (!txt) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function(){
+        var old = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.disabled = true;
+        setTimeout(function(){ btn.textContent = old || 'Copy'; btn.disabled = false; }, 900);
+      }).catch(function(){ alert('Copy failed'); });
+    } else {
+      // Fallback
+      var ta = document.createElement('textarea');
+      ta.value = txt;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch(e){}
+      document.body.removeChild(ta);
+    }
+  }, false);
+});
+</script>
+
+<style>
+/* === UX UPGRADE PACK (non-destructive; appended only) === */
+
+/* 1) Blue banner for main header (applied to the first heading we tag with .sp-banner) */
+#sidePanel .sp-banner {
+  background: linear-gradient(90deg,#2563eb,#0ea5e9);
+  color:#fff !important;
+  border-radius:12px;
+  padding:14px 16px;
+  margin:8px 8px 12px 8px;
+  box-shadow: 0 6px 14px rgba(37,99,235,.18);
+}
+#sidePanel .sp-banner * { color:#fff !important; margin:0; }
+
+/* 2) Section headers in red */
+#sidePanel .sec-title {
+  background:#ef4444;
+  color:#fff !important;
+  border-radius:10px;
+  padding:6px 10px;
+  margin:14px 8px 8px;
+  font-weight:800;
+  letter-spacing:.2px;
+  display:block;
+}
+
+/* 3) Make Edit button visible and premium */
+#sidePanel .btn-edit, #sidePanel a.btn-edit, #sidePanel button.btn-edit {
+  background:#2563eb !important; color:#fff !important; border:none !important;
+  border-radius:10px; padding:6px 12px; font-weight:700;
+}
+#sidePanel .btn-edit:hover { filter:brightness(.95); }
+#sidePanel .btn-close, #closeSidePanel {
+  background:#fff; border:1px solid #e5e7eb; color:#0f172a;
+  width:32px; height:32px; border-radius:999px;
+}
+
+/* 4) Sticky section headers for long scroll */
+#sidePanel .sec-title.sticky {
+  position: sticky; top: 56px; z-index: 3;
+}
+
+/* 5) Section cards for visual separation */
+#sidePanel .sec-card {
+  background:#fff; border:1px solid #e5e7eb; border-radius:12px;
+  box-shadow:0 2px 8px rgba(2,6,23,.06);
+  margin:0 8px 12px; padding:12px 14px;
+}
+
+/* 6) Key–value grid alignment */
+#sidePanel .kv { display:grid; grid-template-columns: 180px 1fr; gap:8px 12px; }
+#sidePanel .kv .label { font-size:.78rem; text-transform:uppercase; color:#64748b; font-weight:800; }
+#sidePanel .kv .value { font-size:.95rem; color:#0f172a; font-weight:600; }
+
+/* 7) Highlight key data with pills */
+#sidePanel .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:.78rem; font-weight:700; }
+#sidePanel .pill-green{ background:#dcfce7; color:#166534; }
+#sidePanel .pill-blue{ background:#dbeafe; color:#1e40af; }
+#sidePanel .pill-amber{ background:#fef3c7; color:#b45309; }
+
+/* 8) Hover copy chips (uses Bootstrap Icons if available) */
+#sidePanel .copy-chip{ border:1px solid #e5e7eb; background:#fff; border-radius:999px; padding:2px 8px; font-size:.75rem; cursor:pointer; }
+#sidePanel .copy-chip:hover{ background:#f3f4f6; }
+#sidePanel .copy-chip .bi{ vertical-align: text-bottom; }
+
+/* 9) Responsive two-column content inside section cards */
+@media (min-width: 900px){
+  #sidePanel .sec-card.two-col { display:grid; grid-template-columns: 1fr 1fr; gap:16px 24px; }
+}
+
+/* 10) Avatar (if present) */
+#sidePanel .avatar { width:44px; height:44px; border-radius:999px; object-fit:cover; box-shadow:0 2px 8px rgba(0,0,0,.15); margin-right:8px; }
+
+/* 11) Keep sidebar readable + scroll (without removing user styles) */
+#sidePanel{ max-height:100vh; overflow-y:auto; }
+#sidePanel, #sidePanel * { color:#0f172a; }
+#sidePanel a{ color:#2563eb; }
+#sidePanel small{ display:none; } /* hide CD-#### as requested */
+
+/* 12) Ensure search dropdowns on line #2 */
+.search-card { display:flex; flex-wrap:wrap; }
+.search-card .break { flex-basis:100%; height:0; }
+.search-card select#calling_status, .search-card select#profile_status { order:3; }
+.search-card button { order:4; }
+.search-card input, .search-card .form-control { order:1; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  /*** Helper: make text copyable with chip ***/
+  function addCopyChip(el, valueGetter){
+    try {
+      if (!el || el.querySelector('.copy-chip')) return;
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'copy-chip';
+      chip.innerHTML = '<i class="bi bi-clipboard"></i> Copy';
+      chip.addEventListener('click', async () => {
+        const txt = typeof valueGetter === 'function' ? valueGetter() : (el.textContent||'').trim();
+        try {
+          await navigator.clipboard.writeText(txt);
+          const old = chip.innerHTML; chip.innerHTML = 'Copied!';
+          setTimeout(()=> chip.innerHTML = old, 900);
+        } catch(e){ alert('Copy failed'); }
+      });
+      el.appendChild(chip);
+    } catch(e){}
+  }
+
+  /*** 0) Force a "break" before Calling Status to move selects to 2nd line ***/
+  try {
+    const callSel = document.getElementById('calling_status');
+    if (callSel) {
+      const parentDiv = callSel.closest('div') || callSel.parentElement;
+      if (parentDiv && !parentDiv.previousElementSibling?.classList?.contains('break')) {
+        const br = document.createElement('div'); br.className='break';
+        parentDiv.parentNode.insertBefore(br, parentDiv);
+      }
+    }
+  } catch(e){}
+
+  /*** 1) Observe sidePanel content and enhance ***/
+  const panel = document.getElementById('sidePanel');
+  if (!panel) return;
+
+  const enhance = () => {
+    try {
+      // 1) Blue banner on the first heading we find
+      const firstHeading = panel.querySelector('h1, h2, h3');
+      if (firstHeading && !firstHeading.classList.contains('sp-banner')) {
+        firstHeading.classList.add('sp-banner');
+      }
+
+      // 2) Section headers (red) based on known names
+      const sectionNames = ['Basic Info', 'Contacts', 'Compensation', 'Profile', 'Location', 'Location & Notice', 'Education', 'Company', 'Current Company', 'Experience', 'Skills'];
+      panel.querySelectorAll('h3, h4, h5').forEach(h => {
+        const t = (h.textContent||'').trim();
+        if (sectionNames.some(n => t.toLowerCase().includes(n.toLowerCase()))) {
+          h.classList.add('sec-title','sticky');
+          // wrap following content into a card if not already
+          const next = h.nextElementSibling;
+          if (next && !next.classList.contains('sec-card')) next.classList.add('sec-card','two-col');
+        }
+      });
+
+      // 3) Edit button visibility
+      panel.querySelectorAll('a,button').forEach(b=>{
+        const t = (b.textContent||'').trim().toLowerCase();
+        if (t === 'edit') b.classList.add('btn-edit');
+        if (t === '×' || t === 'close') b.classList.add('btn-close');
+      });
+
+      // 4) Key–value grid: if a section card has plain <p> like "Label: Value", transform to kv markup non-destructively
+      panel.querySelectorAll('.sec-card').forEach(card => {
+        card.querySelectorAll('p').forEach(p => {
+          const txt = (p.textContent||'').trim();
+          if (txt.includes(':') && !p.classList.contains('kv')) {
+            const parts = txt.split(':');
+            const label = parts.shift().trim();
+            const value = parts.join(':').trim();
+            if (label && value) {
+              const wrapper = document.createElement('div');
+              wrapper.className = 'kv';
+              wrapper.innerHTML = `<div class="label">${label}</div><div class="value">${value}</div>`;
+              p.replaceWith(wrapper); // safe: only replaces the <p> node
+            }
+          }
+        });
+      });
+
+      // 5) Pills for key data (Current/Expected CTC, Experience)
+      panel.querySelectorAll('.kv .label').forEach(label => {
+        const t = (label.textContent||'').toLowerCase();
+        if (t.includes('current ctc')) {
+          const val = label.nextElementSibling; if (val && !val.querySelector('.pill')) { val.innerHTML = `<span class="pill pill-green">${val.innerHTML}</span>`; addCopyChip(val, ()=>val.textContent.trim()); }
+        } else if (t.includes('expected ctc')) {
+          const val = label.nextElementSibling; if (val && !val.querySelector('.pill')) { val.innerHTML = `<span class="pill pill-blue">${val.innerHTML}</span>`; addCopyChip(val, ()=>val.textContent.trim()); }
+        } else if (t.includes('total experience')) {
+          const val = label.nextElementSibling; if (val && !val.querySelector('.pill')) { val.innerHTML = `<span class="pill pill-amber">${val.innerHTML}</span>`; }
+        }
+      });
+
+      // 6) Icons with labels for Phone/Email + copy chips
+      panel.querySelectorAll('.kv').forEach(kv => {
+        const label = kv.querySelector('.label'); const value = kv.querySelector('.value');
+        if (!label || !value) return;
+        const t = (label.textContent||'').toLowerCase();
+        if (t.includes('phone')) {
+          if (!label.querySelector('.bi')) label.innerHTML = '<i class="bi bi-telephone"></i> ' + label.innerHTML;
+          addCopyChip(value, ()=>value.textContent.trim());
+        } else if (t.includes('email')) {
+          if (!label.querySelector('.bi')) label.innerHTML = '<i class="bi bi-envelope"></i> ' + label.innerHTML;
+          addCopyChip(value, ()=>value.textContent.trim());
+        }
+      });
+
+      // 7) Ensure sidebar scroll & readability (defensive)
+      panel.style.maxHeight = '100vh'; panel.style.overflowY = 'auto';
+
+    } catch(e){ /* swallow */ }
+  };
+
+  enhance();
+  const mo = new MutationObserver(enhance);
+  mo.observe(panel, { childList:true, subtree:true });
+});
+</script>
+
+<script>
+// Force header styling with direct values (no CSS variable dependency)
+document.addEventListener('DOMContentLoaded', function() {
+  const header = document.getElementById('rfuHeader');
+  if (!header) return;
+  
+  // Apply styles directly with !important
+  header.style.background = 'linear-gradient(90deg, #3b82f6, #2563eb) !important';
+  header.style.borderBottom = '1px solid rgba(0,0,0,0.08) !important';
+  header.style.boxShadow = '0 6px 22px rgba(0,0,0,0.12) !important';
+  header.style.color = '#ffffff !important';
+  
+  // Force text colors
+  const brand = header.querySelector('.navbar-brand');
+  const links = header.querySelectorAll('.nav-link');
+  
+  if (brand) brand.style.color = '#ffffff !important';
+  
+  links.forEach(link => {
+    link.style.color = '#ffffff !important';
+    // Also style any child elements
+    const children = link.querySelectorAll('*');
+    children.forEach(child => {
+      child.style.color = '#ffffff !important';
+    });
+  });
+});
+</script>

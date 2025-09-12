@@ -1,0 +1,993 @@
+
+<style>
+/* ====== Consolidated :root (authoritative for page) ====== */
+:root{
+  --header-bg: #2f3b45;
+  --header-border: #212a31;
+  --ink: #e9eef2;
+  --icon-teal: #11d4c7;
+  --brand-orange: #d97706;
+  --pill-hover: rgba(255,255,255,.06);
+  --focus: #8bffd9;
+  --card-radius: 12px;
+
+  /* page vars */
+  --primary: #2563eb;
+  --primary-light: #3b82f6;
+  --primary-dark: #1e40af;
+  --gray-bg: #f5f7fa;
+  --card-bg: #fff;
+  --border: #e5e7eb;
+  --muted: #6b7280;
+  --accent: #e0e7ff;
+  --shadow: 0 2px 12px rgba(40,60,120,.07);
+  --radius: 12px;
+
+  /* decoupled table header */
+  --table-header-bg: #f1f5f9;
+}
+
+/* ====== LOCK NAVBAR ====== */
+#rfuHeader {
+  position: relative;
+  z-index: 1100; /* must be above sticky table headers and panels */
+  display: flow-root; /* stops margin-collapse leaks */
+}
+#rfuHeader.navbar {
+  background: var(--header-bg) !important;
+  border-bottom: 2px solid var(--header-border) !important;
+  box-shadow: 0 6px 22px rgba(0,0,0,.18) !important;
+  opacity: 1 !important; filter: none !important;
+}
+#rfuHeader > .container { margin: 0 auto !important; padding-left: 0 !important; padding-right: 0 !important; background: transparent !important; }
+
+/* Keep collapse internals transparent on mobile */
+#rfuHeader .navbar,
+#rfuHeader .navbar-collapse,
+#rfuHeader .navbar-nav,
+#rfuHeader .header-wrap { background: transparent !important; }
+
+/* toggler: correct alpha */
+#rfuHeader .navbar-toggler { border-color: rgba(255,255,255,.25); }
+#rfuHeader .navbar-toggler .navbar-toggler-icon { filter: invert(1) grayscale(1); }
+
+/* ====== PAGE SCOPING: replace any global .container use with .allc-page .container ====== */
+.allc-page .container { max-width: 1260px; margin: 28px auto; padding: 0 16px; }
+
+/* ====== TABLES: decoupled and stacking-safe ====== */
+.table thead th,
+.allc-page table.table thead th {
+  background: var(--table-header-bg) !important;
+  color: var(--primary-dark) !important;
+  position: sticky;
+  top: 0;
+  z-index: 2; /* below nav (1100) */
+}
+
+/* Prevent any late body CSS from adding top margin to header container */
+#rfuHeader .container { margin-top: 0 !important; margin-bottom: 0 !important; }
+
+/* Encourage less !important usage later — keep this rule minimal and high-specificity */
+.allc-page #export-btn { background: var(--primary-light) !important; color:#fff !important; border:none !important; }
+
+/* Side panel z-index coordination — keep sidePanel below nav but above page content */
+#sidePanel { z-index: 1050 !important; }
+
+/* Inline editor higher than sidePanel but not absurd */
+/* removed conflicting z-index override for .sp2-inline-editor */
+
+</style>
+
+<!-- moved header/body styles -->
+<style>
+  /* FINAL OVERRIDE: keep base header dark on this page */
+  #rfuHeader.navbar{ background:#2f3b45 !important; border-bottom:2px solid #212a31 !important; }
+  /* ensure inner pieces don't repaint light backgrounds */
+  #rfuHeader .container,
+  #rfuHeader .navbar,
+  #rfuHeader .navbar-collapse,
+  #rfuHeader .navbar-nav,
+  #rfuHeader .header-wrap{ background:transparent !important; }
+</style>
+
+{% extends "base.html" %}
+
+{% block head %}
+
+{% endblock %}
+
+{% block content %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% raw %}
+<!-- Injected from candidates_list.html (non-destructive) -->
+<style id="candidates-list-styles">
+:root {
+  --primary: #2563eb;
+  --primary-light: #3b82f6;
+  --primary-dark: #1e40af;
+  --gray-bg: #f5f7fa;
+  --card-bg: #fff;
+  --border: #e5e7eb;
+  --muted: #6b7280;
+  --accent: #e0e7ff;
+  --shadow: 0 2px 12px rgba(40,60,120,.07);
+  --radius: 12px;
+  --row-hover: #f9fafb;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #f59e0b;
+}
+
+body, .allc-page .container { font-family: 'Inter','Segoe UI',Arial,sans-serif; background: var(--gray-bg); }
+.allc-page .container { max-width: 1260px; margin: 28px auto; padding: 0 16px; }
+
+/* Ensure no empty gap above header (global rule: visual only) */
+.container > *:first-child { margin-top: 0 !important; }
+.page-header { background: linear-gradient(90deg, var(--primary-light), var(--primary)); border-radius: var(--radius); padding: 1.5rem 2rem; margin-bottom: 1.8rem; box-shadow: var(--shadow); border: 1px solid var(--border); color:#fff; margin-top:0!important; }
+.page-header .title-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.page-header h2 { margin:0; font-size:1.5rem; font-weight:700; color: #fff !important; }
+.page-actions { display:flex; flex-wrap: wrap; gap: 0.6rem; }
+.page-actions .btn { font-size: 0.95rem; border-radius: var(--radius); padding: 8px 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.page-actions .btn-primary { background: var(--primary); color: #fff; border: none; }
+.page-actions .btn-primary:hover { background: var(--primary-dark); }
+.page-actions .btn-outline-secondary { background:#fff; border:1.5px solid var(--border); color: var(--muted);} 
+.page-actions .btn-outline-secondary:hover { background: var(--row-hover); }
+.page-header small { color: #fff !important; font-size: 0.95rem; margin-left: 8px; }
+
+.search-card { background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border); padding: 1rem 1.2rem; margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.8rem; }
+.search-card label { font-size: 0.82rem; font-weight:700; color: var(--primary-dark); display:block; margin-bottom: 3px; }
+.search-card .form-control { border-radius: var(--radius); border: 1.5px solid var(--border); font-size: 0.95rem; width: 200px; background: #f8fafc; }
+.search-card .form-control:focus { border-color: var(--primary); background: #fff; }
+
+.filter-chip { display:inline-flex; align-items:center; gap:4px; background: var(--primary); color:#fff; padding:4px 10px; border-radius:9999px; font-size:0.8rem; }
+.filter-chip a { color:#fff; margin-left:4px; text-decoration:none; font-weight:700; }
+
+.table-card { background: var(--card-bg); box-shadow: var(--shadow); border-radius: var(--radius); border: 1px solid var(--border); padding: 0.6rem; }
+.table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.table th, .table td { padding: 4px 6px !important; font-size: 0.9rem; height:20px; border-bottom: 1px solid var(--border); max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.table td:hover { white-space: normal; overflow: visible; text-overflow: unset; }
+.table thead th { background: var(--table-header-bg); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; color: var(--primary-dark); position: sticky; top: 0; z-index: 2; }
+.table-hover tbody tr:hover { background-color: #eef4ff; transition: background 0.2s; }
+
+.badge { font-size: 0.8rem; font-weight:600; padding: 0.3em 0.8em; border-radius:9999px; }
+.bg-success { background: var(--success); color: #fff; }
+.bg-warning { background: var(--warning); color: #111; }
+.bg-danger { background: var(--danger); color: #fff; }
+.bg-secondary { background: var(--muted); color:#fff; }
+
+.actions .btn { border:none; background:none; padding:0.35rem; color:var(--muted); border-radius: var(--radius);} 
+.actions .btn:hover { color:var(--primary-dark); background: var(--accent); }
+
+.selection-counter { margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--muted); font-weight:600; display:none; }
+
+#reset-btn { background: var(--success) !important; color:#fff !important; border:none !important; }
+#add-candidate-btn, #import-btn { background: var(--success) !important; color: #fff !important; border: none !important; }
+
+
+
+/* Inline status editor */
+.inline-status-editor{position:absolute; background:#fff; border:1px solid var(--border); box-shadow: var(--shadow); padding:8px; border-radius:8px; z-index:2000; width:360px;}
+.inline-status-editor select{width:100%; margin-bottom:6px;}
+.inline-status-editor .actions{display:flex; gap:6px; justify-content:flex-end;}
+
+/* Side panel */
+#sidePanel { position: fixed; top: 0; right: -50%; width: 50%; height: 100%; background: #fff; box-shadow: -2px 0 8px rgba(0,0,0,0.1); overflow-y: auto; transition: right 0.3s ease; z-index: 1050; padding: 1rem; }
+#sidePanel.active { right: 0; }
+#closeSidePanel { position:absolute; top:10px; right:10px; z-index:1100; }
+
+
+
+/* === MERGED PATCH: UI tweaks === */
+/* Remove any top whitespace above header */
+html, body { margin: 0 !important; padding: 0 !important; }
+.container { margin-top: 0 !important; }
+/* Normalize header/title font sizes so "Java for Provar Solution" shows uniform */
+.section-title, .section-title span, .section-title small, .page-header h2, .page-header small {
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  color: #fff !important;
+}
+/* Force candidate table columns to 130px with ellipsis for overflow; actions column stays auto */
+#candidatesTable th, #candidatesTable td {
+  max-width: 130px !important;
+  width: 130px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+#candidatesTable th.actions-col, #candidatesTable td.actions {
+  width: auto !important;
+  max-width: none !important;
+  white-space: nowrap !important;
+}
+@media (max-width: 768px) {
+  #candidatesTable th, #candidatesTable td { white-space: normal !important; width: auto !important; max-width: none !important; }
+}
+/* small spacing for new dropdowns */
+.search-card .form-select { width: 180px; display: inline-block; margin-right: 6px; }
+
+
+
+/* EMAIL HOVER & COPY BUTTON - added by patch */
+#candidatesTable td.email-cell { position: relative; }
+#candidatesTable tr:hover td.email-cell {
+  white-space: normal !important;
+  overflow: visible !important;
+  max-width: none !important;
+  background: inherit !important;
+  z-index: 3;
+}
+#candidatesTable td.email-cell .copy-email-btn {
+  display: none;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+#candidatesTable tr:hover td.email-cell .copy-email-btn { display: inline-block; }
+#candidatesTable td.email-cell .email-content { display: inline-block; max-width: 100%; }
+
+/* === Minimal Patch v2: Email hover + Copy + Dropdown line break === */
+/* Strong override in case table cells had nowrap */
+#candidatesTable tbody tr:hover td { white-space: normal !important; overflow: visible !important; }
+/* Limit the extra padding/positioning only to the Email column (4th) */
+#candidatesTable td:nth-child(4) { position: relative; padding-right: 56px !important; }
+/* Copy button visibility/placement in the Email column */
+#candidatesTable td:nth-child(4) .copy-btn,
+#candidatesTable td:nth-child(4) .copy-email-btn {
+  display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  padding: 2px 6px; font-size: 0.7rem; z-index: 5;
+}
+#candidatesTable tr:hover td:nth-child(4) .copy-btn,
+#candidatesTable tr:hover td:nth-child(4) .copy-email-btn { display: inline-block; }
+
+/* Flex breaker + ordering so selects follow inputs, then buttons */
+.search-card { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.search-card .break { flex-basis: 100%; height: 0; }
+.search-card button { order: 3; }
+.search-card input#name, .search-card input#phone, .search-card input#email, .search-card input#location { order: 1; }
+.search-card select#calling_status, .search-card select#profile_status { order: 2; }
+
+
+
+
+/* === UX UPGRADE PACK (non-destructive; appended only) === */
+
+/* 1) Blue banner for main header (applied to the first heading we tag with .sp-banner) */
+#sidePanel .sp-banner {
+  background: linear-gradient(90deg,#2563eb,#0ea5e9);
+  color:#fff !important;
+  border-radius:12px;
+  padding:14px 16px;
+  margin:8px 8px 12px 8px;
+  box-shadow: 0 6px 14px rgba(37,99,235,.18);
+}
+#sidePanel .sp-banner * { color:#fff !important; margin:0; }
+
+/* 2) Section headers in red */
+#sidePanel .sec-title {
+  background:#ef4444;
+  color:#fff !important;
+  border-radius:10px;
+  padding:6px 10px;
+  margin:14px 8px 8px;
+  font-weight:800;
+  letter-spacing:.2px;
+  display:block;
+}
+
+/* 3) Make Edit button visible and premium */
+#sidePanel .btn-edit, #sidePanel a.btn-edit, #sidePanel button.btn-edit {
+  background:#2563eb !important; color:#fff !important; border:none !important;
+  border-radius:10px; padding:6px 12px; font-weight:700;
+}
+#sidePanel .btn-edit:hover { filter:brightness(.95); }
+#sidePanel .btn-close, #closeSidePanel {
+  background:#fff; border:1px solid #e5e7eb; color:#0f172a;
+  width:32px; height:32px; border-radius:999px;
+}
+
+/* 4) Sticky section headers for long scroll */
+#sidePanel .sec-title.sticky {
+  position: sticky; top: 56px; z-index: 3;
+}
+
+/* 5) Section cards for visual separation */
+#sidePanel .sec-card {
+  background:#fff; border:1px solid #e5e7eb; border-radius:12px;
+  box-shadow:0 2px 8px rgba(2,6,23,.06);
+  margin:0 8px 12px; padding:12px 14px;
+}
+
+/* 6) Key–value grid alignment */
+#sidePanel .kv { display:grid; grid-template-columns: 180px 1fr; gap:8px 12px; }
+#sidePanel .kv .label { font-size:.78rem; text-transform:uppercase; color:#64748b; font-weight:800; }
+#sidePanel .kv .value { font-size:.95rem; color:#0f172a; font-weight:600; }
+
+/* 7) Highlight key data with pills */
+#sidePanel .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:.78rem; font-weight:700; }
+#sidePanel .pill-green{ background:#dcfce7; color:#166534; }
+#sidePanel .pill-blue{ background:#dbeafe; color:#1e40af; }
+#sidePanel .pill-amber{ background:#fef3c7; color:#b45309; }
+
+/* 8) Hover copy chips (uses Bootstrap Icons if available) */
+#sidePanel .copy-chip{ border:1px solid #e5e7eb; background:#fff; border-radius:999px; padding:2px 8px; font-size:.75rem; cursor:pointer; }
+#sidePanel .copy-chip:hover{ background:#f3f4f6; }
+#sidePanel .copy-chip .bi{ vertical-align: text-bottom; }
+
+/* 9) Responsive two-column content inside section cards */
+@media (min-width: 900px){
+  #sidePanel .sec-card.two-col { display:grid; grid-template-columns: 1fr 1fr; gap:16px 24px; }
+}
+
+/* 10) Avatar (if present) */
+#sidePanel .avatar { width:44px; height:44px; border-radius:999px; object-fit:cover; box-shadow:0 2px 8px rgba(0,0,0,.15); margin-right:8px; }
+
+/* 11) Keep sidebar readable + scroll (without removing user styles) */
+#sidePanel{ max-height:100vh; overflow-y:auto; }
+#sidePanel, #sidePanel * { color:#0f172a; }
+#sidePanel a{ color:#2563eb; }
+#sidePanel small{ display:none; } /* hide CD-#### as requested */
+
+/* 12) Ensure search dropdowns on line #2 */
+.search-card { display:flex; flex-wrap:wrap; }
+.search-card .break { flex-basis:100%; height:0; }
+.search-card select#calling_status, .search-card select#profile_status { order:3; }
+.search-card button { order:4; }
+.search-card input, .search-card .form-control { order:1; }
+
+/* ===== Adapter layer for All Candidates ===== */
+
+/* === Adapter: bring Candidates List styling into All Candidates (non-destructive) === */
+/* Header mapping */
+.allc-page .hdr {
+  background: linear-gradient(90deg, var(--primary-light, #3b82f6), var(--primary, #2563eb)) !important;
+  border-radius: var(--radius, 12px) !important;
+  padding: 1.5rem 2rem !important;
+  box-shadow: var(--shadow, 0 2px 12px rgba(40,60,120,.07)) !important;
+  border: 1px solid var(--border, #e5e7eb) !important;
+  color: #fff !important;
+}
+.allc-page .hdr h2{
+  margin:0 !important;
+  font-size:1.5rem !important;
+  font-weight:700 !important;
+  color:#fff !important;
+}
+
+/* Search card & controls */
+.allc-page .search-card {
+  background: var(--card-bg, #fff) !important;
+  border-radius: var(--radius, 12px) !important;
+  box-shadow: var(--shadow, 0 2px 12px rgba(40,60,120,.07)) !important;
+  border: 1px solid var(--border, #e5e7eb) !important;
+  padding: 1rem 1.2rem !important;
+  display:flex; flex-wrap:wrap; align-items:flex-end; gap: 8px 12px;
+}
+.allc-page .search-card label{ font-size: .82rem; font-weight:700; color: var(--primary-dark, #1e40af); margin-bottom:3px; display:block; }
+.allc-page .search-card .form-control,
+.allc-page .search-card .form-select{
+  border-radius: var(--radius, 12px) !important;
+  border: 1.5px solid var(--border, #e5e7eb) !important;
+  font-size: 0.95rem !important;
+  background: #f8fafc !important;
+}
+.allc-page .search-card .form-control:focus,
+.allc-page .search-card .form-select:focus{
+  border-color: var(--primary, #2563eb) !important;
+  background: #fff !important;
+}
+
+/* Table card and table look */
+.allc-page .table-card{
+  background: var(--card-bg, #fff) !important;
+  border: 1px solid var(--border, #e5e7eb) !important;
+  border-radius: var(--radius, 12px) !important;
+  box-shadow: var(--shadow, 0 2px 12px rgba(40,60,120,.07)) !important;
+  padding: .6rem !important;
+}
+.allc-page table.table th, .allc-page table.table td{
+  padding: 4px 6px !important;
+  font-size: 0.9rem !important;
+  height: 20px !important;
+  border-bottom: 1px solid var(--border, #e5e7eb) !important;
+  max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.allc-page table.table td:hover{ white-space: normal; overflow: visible; text-overflow: unset; }
+.allc-page table.table thead th{
+  background: var(--table-header-bg) !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  color: var(--primary-dark, #1e40af) !important;
+  position: sticky; top: 0; z-index: 2;
+}
+.allc-page .table-hover tbody tr:hover{ background-color: #eef4ff; transition: background .2s; }
+
+/* Actions column should stay auto width */
+.allc-page #candidatesTable th.actions-col,
+.allc-page #candidatesTable td.actions-col,
+.allc-page #candidatesTable td.actions{ width:auto !important; max-width:none !important; white-space:nowrap !important; }
+
+/* Copy button & email hover like Candidates List */
+.allc-page #candidatesTable td:nth-child(7){ position: relative; padding-right: 56px !important; }
+.allc-page #candidatesTable td:nth-child(7) .copy-btn,
+.allc-page #candidatesTable td:nth-child(7) .copy-email-btn{
+  display:none; position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  padding:2px 6px; font-size:.7rem; z-index:5;
+}
+.allc-page #candidatesTable tr:hover td:nth-child(7) .copy-btn,
+.allc-page #candidatesTable tr:hover td:nth-child(7) .copy-email-btn{ display:inline-block; }
+
+/* Side panel parity */
+.allc-page #sidePanel{ background:#fff; box-shadow:-2px 0 8px rgba(0,0,0,0.1); border-left:1px solid var(--border, #e5e7eb); }
+.allc-page #closeSidePanel{ background:#fff; border:1px solid var(--border, #e5e7eb); }
+
+/* Selection counter look (if used) */
+.allc-page #selection-counter{ margin-bottom:.5rem; font-size:.9rem; color:#6b7280; font-weight:600; display:none; }
+
+/* Buttons parity */
+.allc-page 
+.allc-page 
+
+
+/* Minimal overrides: requested UI tweaks */
+
+
+#addedByMeSwitchWrap .form-check-input { border-color: #ef4444; }
+
+
+
+
+/* Solid green Export button (high specificity) */
+.hdr .btn.btn-export-all
+.hdr .btn.btn-export-all
+
+
+/* spacing for toggle under heading */
+
+
+
+
+
+
+
+
+
+
+
+
+
+</style>
+{% endraw %}
+
+
+<div class="allc-page container-fluid py-3">
+
+<style>
+/* ===== Scoped styles (won't leak) ===== */
+:root{ --border:#e5e7eb; --shadow:0 2px 12px rgba(40,60,120,.07); }
+.allc-page .hdr{ background: linear-gradient(90deg,#3b82f6,#2563eb); border-radius:12px; padding:1rem 1.25rem; color:#fff; box-shadow: var(--shadow); }
+.allc-page .hdr h2{ margin:0; font-weight:700; color:#fff; }
+.allc-page .actions{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+.allc-page .btn-export-all{ background:#b91c1c; color:#fff; border:1px solid #991b1b; }
+.allc-page .btn-export-all:hover{ background:#991b1b; color:#fff; }
+.allc-page .search-card{ background:#fff; border:1px solid var(--border); border-radius:12px; padding:1rem; box-shadow:var(--shadow); display:flex; flex-wrap:wrap; gap:.75rem; align-items:flex-end; margin:1rem 0; }
+.allc-page .search-card label{ font-weight:600; font-size:.85rem; }
+.allc-page .search-card .form-control,.allc-page .search-card .form-select{ min-width:180px; }
+.allc-page .table-card{ background:#fff; border:1px solid var(--border); border-radius:12px; padding:.5rem; box-shadow:var(--shadow); }
+.allc-page table thead th{ background:var(--header-bg); text-transform:uppercase; font-size:.8rem; }
+.allc-page .actions-col{ white-space:nowrap; }
+
+/* Side panel */
+.allc-page #sidePanel{ position:fixed; top:0; right:-560px; width:560px; height:100vh; background:#fff; border-left:1px solid var(--border); box-shadow:-2px 0 16px rgba(0,0,0,.08); z-index:1055; transition:right .25s ease; overflow:auto; }
+.allc-page #sidePanel.active{ right:0; }
+.allc-page #closeSidePanel{ position:absolute; top:10px; right:10px; }
+
+/* Inline status popup */
+.sp2-inline-editor{ position:absolute; z-index:5000; }
+.sp2-inline-editor .card{ background:#fff; border:1px solid var(--border); border-radius:10px; padding:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); width:360px; }
+</style>
+<style>
+/* Robust column-specific rules (avoid nth-child selectors) */
+#candidatesTable td.email-cell { position: relative; padding-right: 56px !important; }
+#candidatesTable td.email-cell .copy-email-btn,
+#candidatesTable td.email-cell .copy-btn {
+  display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  padding: 2px 6px; font-size: 0.7rem; z-index: 5;
+}
+#candidatesTable tr:hover td.email-cell .copy-email-btn,
+#candidatesTable tr:hover td.email-cell .copy-btn { display: inline-block; }
+
+#candidatesTable td.phones-cell { position: relative; padding-right: 56px !important; }
+#candidatesTable td.phones-cell .copy-btn { display: none; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 2px 6px; font-size: 0.7rem; z-index: 5; }
+#candidatesTable tr:hover td.phones-cell .copy-btn { display: inline-block; }
+
+/* Added On column styling */
+#candidatesTable td.added-on-cell { white-space: nowrap; font-size: 0.95em; color: #333; }
+</style>
+
+
+  <div class="hdr d-flex justify-content-between align-items-center">
+    <h2>All Candidates <small>({{ total }} found)</small></h2>
+    <!-- Added by me (under heading) -->
+
+    <div class="actions">
+      <button id="export-btn" class="btn btn-export-all"><i class="bi bi-download"></i> Export</button>
+    </div>
+  </div>
+
+  <!-- Toggle under header row -->
+  <div class="form-check form-switch mt-2 ms-2" id="addedByMeSwitchWrap">
+    <input class="form-check-input" type="checkbox" id="added_by_me_toggle"
+           {% if (added_by_me or '1') == '1' %}checked{% endif %}>
+    <label class="form-check-label fw-semibold" for="added_by_me_toggle">Added by me</label>
+  </div>
+
+<form id="search-form" class="search-card" method="GET" action="{{ url_for('all_candidates_bp.all_candidates') }}">
+  <div><label for="name">Name</label><input id="name" name="name" class="form-control" value="{{ name or '' }}"></div>
+  <div><label for="phone">Phone</label><input id="phone" name="phone" class="form-control" value="{{ phone or '' }}"></div>
+  <div><label for="email">Email</label><input id="email" name="email" class="form-control" value="{{ email or '' }}"></div>
+  <div><label for="location">Location</label><input id="location" name="location" class="form-control" value="{{ location or '' }}"></div>
+  <!-- NEW: Key Skills -->
+  <div><label for="key_skills">Key Skills</label><input id="key_skills" name="key_skills" class="form-control" placeholder="e.g. java, selenium, api" value="{{ key_skills or '' }}"></div>
+
+  <div class="w-100"></div>
+
+    <input type="hidden" id="added_by_me_hidden" name="added_by_me" value="{{ added_by_me or '1' }}">
+  <div class="w-100"></div>
+<div>
+    <label for="calling_status">Calling status</label>
+    <select name="calling_status" id="calling_status" class="form-select form-select-sm">
+      <option value="" {% if not calling_status %}selected{% endif %}>Any Calling status</option>
+      <option value="Screen Select" {% if calling_status=='Screen Select' %}selected{% endif %}>Screen Select</option>
+      <option value="CNS" {% if calling_status=='CNS' %}selected{% endif %}>CNS</option>
+      <option value="Not interested" {% if calling_status=='Not interested' %}selected{% endif %}>Not interested</option>
+      <option value="Not Reachable" {% if calling_status=='Not Reachable' %}selected{% endif %}>Not Reachable</option>
+      <option value="Rejected" {% if calling_status=='Rejected' %}selected{% endif %}>Rejected</option>
+    </select>
+  </div>
+  <div>
+    <label for="profile_status">Profile status</label>
+    <select name="profile_status" id="profile_status" class="form-select form-select-sm">
+      <option value="" {% if not profile_status %}selected{% endif %}>Any Profile status</option>
+      <option value="Profile shared with client" {% if profile_status=='Profile shared with client' %}selected{% endif %}>Profile shared with client</option>
+      <option value="Review Pending by client" {% if profile_status=='Review Pending by client' %}selected{% endif %}>Review Pending by client</option>
+      <option value="R2 Pending" {% if profile_status=='R2 Pending' %}selected{% endif %}>R2 Pending</option>
+      <option value="R3 Pending" {% if profile_status=='R3 Pending' %}selected{% endif %}>R3 Pending</option>
+      <option value="R1 to be schedule" {% if profile_status=='R1 to be schedule' %}selected{% endif %}>R1 to be schedule</option>
+      <option value="R2 scheduled" {% if profile_status=='R2 scheduled' %}selected{% endif %}>R2 scheduled</option>
+      <option value="R3 scheduled" {% if profile_status=='R3 scheduled' %}selected{% endif %}>R3 scheduled</option>
+      <option value="R1 scheduled" {% if profile_status=='R1 scheduled' %}selected{% endif %}>R1 scheduled</option>
+      <option value="Screen Rejected" {% if profile_status=='Screen Rejected' %}selected{% endif %}>Screen Rejected</option>
+      <option value="F2F Scheduled" {% if profile_status=='F2F Scheduled' %}selected{% endif %}>F2F Scheduled</option>
+      <option value="R1 FBP" {% if profile_status=='R1 FBP' %}selected{% endif %}>R1 FBP</option>
+      <option value="R2 FBP" {% if profile_status=='R2 FBP' %}selected{% endif %}>R2 FBP</option>
+      <option value="R3 FBP" {% if profile_status=='R3 FBP' %}selected{% endif %}>R3 FBP</option>
+      <option value="HR Round" {% if profile_status=='HR Round' %}selected{% endif %}>HR Round</option>
+      <option value="Offered" {% if profile_status=='Offered' %}selected{% endif %}>Offered</option>
+      <option value="R2 Rejected" {% if profile_status=='R2 Rejected' %}selected{% endif %}>R2 Rejected</option>
+      <option value="R3 Rejected" {% if profile_status=='R3 Rejected' %}selected{% endif %}>R3 Rejected</option>
+      <option value="R1 Rejected" {% if profile_status=='R1 Rejected' %}selected{% endif %}>R1 Rejected</option>
+    </select>
+  </div>
+  <div>
+    <label for="requirement_id">Requirement</label>
+    <select name="requirement_id" id="requirement_id" class="form-select form-select-sm">
+      <option value="" {% if not requirement_id %}selected{% endif %}>Any Requirement</option>
+    </select>
+  </div>
+
+  <div>
+    <label for="interview_date">Interview date</label>
+    <input type="date" id="interview_date" name="interview_date" class="form-control" value="{{ interview_date or '' }}">
+  </div>
+  <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Search</button>
+  <button type="button" id="reset-btn" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+</form>
+
+<div class="table-card">
+  {% if candidates %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle" id="candidatesTable">
+      <thead>
+        <tr>
+          <th style="width:36px;"><input type="checkbox" id="select-all"></th>
+          <th>Job Title</th>
+          <th>Requirement</th>
+          <th>Candidate Name</th>
+          <th>Total Experience</th>
+          <th>Phone Number</th>
+          <th>Email ID</th>
+          <th>Notice Period</th>
+          <th>Current Location</th>
+          <th>Calling Status</th>
+          <th>Profile Status</th>
+          <th>Comments</th>
+          <th>Added On</th>
+    <th>Added By</th>
+          <th class="actions-col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in candidates %}
+        <tr data-id="{{ c.id }}">
+          <td><input type="checkbox" class="row-checkbox" value="{{ c.id }}"></td>
+          <td>{{ c.job_title or '-' }}</td>
+          <td>
+            {% if c.req_id %}
+              <a href="{{ url_for('requirement_candidates', req_id=c.req_id) }}">{{ c.requirement_name or ('Requirement ' ~ c.req_id) }}</a>
+              {% if c.client_name %}<small class="text-muted"> ({{ c.client_name }})</small>{% endif %}
+            {% else %}-{% endif %}
+          </td>
+          <td><a href="#" class="candidate-link" data-id="{{ c.id }}">{{ c.candidate_name or '-' }}</a></td>
+          <td>{{ c.total_experience or '-' }}</td>
+          <td class=\"phones-cell\">{{ c.phones | join(', ') if c.phones else '-' }}
+            {% if c.phones %}<button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-copy="{{ c.phones | join(', ') }}"><i class="bi bi-clipboard"></i></button>{% endif %}
+          </td>
+          <td class=\"email-cell\">{{ c.emails | join(', ') if c.emails else '-' }}
+            {% if c.emails %}<button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-copy="{{ c.emails | join(', ') }}"><i class="bi bi-clipboard"></i></button>{% endif %}
+          </td>
+          <td>{{ c.notice_period or '-' }}</td>
+          <td>{{ c.current_location or '-' }}</td>
+          <td>{{ c.calling_status or '-' }}</td>
+          <td>{{ c.profile_status or '-' }}</td>
+          <td>{{ c.comments or '-' }}</td>
+          <td class="added-on-cell">
+      {% if c.added_date %}
+        {{ c.added_date.strftime('%Y-%m-%d %H:%M') }}
+      {% else %}
+        -
+      {% endif %}
+    </td>
+<td>{{ c.added_by_name or c.added_by or '—' }}</td>
+          <td class="actions-col">
+            <button class="btn btn-sm btn-outline-secondary view-candidate" data-id="{{ c.id }}" data-bs-toggle="modal" data-bs-target="#candidateModal"><i class="bi bi-eye"></i></button>
+            <a href="{{ url_for('edit_candidate', cand_id=c.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+            <form method="POST" action="{{ url_for('delete_candidate', cand_id=c.id) }}" onsubmit="return confirm('Delete this candidate?');" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </form>
+            <button class="btn btn-sm btn-outline-secondary status-popover" data-id="{{ c.id }}" data-profile="{{ c.profile_status or '' }}" data-calling="{{ c.calling_status or '' }}" data-idate="{{ c.interview_date or '' }}" data-itime="{{ c.interview_time or '' }}"><i class="bi bi-ui-checks"></i></button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <nav aria-label="Candidate pagination">
+      {% if paginator.pages > 1 %}
+      <ul class="pagination justify-content-center mt-3">
+        {% set links = paginator.page_links() %}
+        {% if links.prev %}<li class="page-item"><a class="page-link" href="{{ links.prev }}">Prev</a></li>{% endif %}
+        {% for p, url, current in paginator.windowed_pages(window=2) %}
+          <li class="page-item {% if current %}active{% endif %}"><a class="page-link" href="{{ url }}">{{ p }}</a></li>
+        {% endfor %}
+        {% if links.next %}<li class="page-item"><a class="page-link" href="{{ links.next }}">Next</a></li>{% endif %}
+      </ul>
+      {% endif %}
+    </nav>
+
+  </div>
+  {% else %}
+    <div class="p-4">No candidates found</div>
+  {% endif %}
+</div>
+
+<!-- Modal (kept for eye icon) -->
+<div class="modal fade" id="candidateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Candidate Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0" id="candidateModalContent"><div class="p-4">Loading...</div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Side Panel -->
+<div id="sidePanel">
+  <button id="closeSidePanel" class="btn btn-sm btn-outline-secondary">×</button>
+  <div id="sidePanelContent" class="p-3">Loading...</div>
+</div>
+
+</div> <!-- /.allc-page -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // Reset
+  document.getElementById('reset-btn')?.addEventListener('click', ()=>{
+    const u = new URL(window.location.href); u.search=''; window.location = u.toString();
+  });
+
+  // Requirement filter
+  fetch("{{ url_for('all_candidates_bp.all_candidates_requirements_json') }}")
+    .then(r=>r.json()).then(data=>{
+      if(!data.ok) return;
+      const select = document.getElementById('requirement_id');
+      if (select) {
+        (data.requirements||[]).forEach(r=>{
+          const opt=document.createElement('option');
+          opt.value=r.id; opt.textContent=(r.requirement_name||('Requirement '+r.id))+(r.client_name?(' ('+r.client_name+')'):''); 
+          if ("{{ requirement_id or '' }}" && String(r.id) === "{{ requirement_id or '' }}") opt.selected=true;
+          select.appendChild(opt);
+        });
+      }
+    }).catch(()=>{});
+
+  // Side panel
+  const sidePanel = document.getElementById('sidePanel');
+  const sidePanelContent = document.getElementById('sidePanelContent');
+  const closeBtn = document.getElementById('closeSidePanel');
+  function openPanel(){ sidePanel.classList.add('active'); }
+  function closePanel(){ sidePanel.classList.remove('active'); }
+  closeBtn?.addEventListener('click', closePanel);
+
+  document.querySelectorAll('.candidate-link').forEach(link=>{
+    link.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      const id = link.dataset.id;
+      const url = "{{ url_for('candidate_partial', cand_id=0) }}".replace('/0/', `/${id}/`);
+      sidePanelContent.innerHTML = '<div class="p-4">Loading...</div>';
+      openPanel();
+      const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      sidePanelContent.innerHTML = await resp.text();
+    });
+  });
+
+  // Modal (eye icon)
+  document.querySelectorAll('.view-candidate').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.id;
+      const url = "{{ url_for('candidate_partial', cand_id=0) }}".replace('/0/', `/${id}/`);
+      const resp = await fetch(url, { headers: { 'X-Requested-With':'XMLHttpRequest' } });
+      document.getElementById('candidateModalContent').innerHTML = await resp.text();
+    });
+  });
+
+  // Export:
+  // - If some rows are selected -> POST /export_candidates (existing behavior)
+  // - If none selected -> POST current filters to /candidates/export_all (ALL pages)
+  document.getElementById('export-btn')?.addEventListener('click', async ()=>{
+    const token = document.querySelector("meta[name='csrf-token']")?.content || '';
+
+    const selected = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb=>cb.value);
+    if (selected.length > 0) {
+      const resp = await fetch('/export_candidates', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':token},
+        body: JSON.stringify({ ids: selected })
+      });
+      if(!resp.ok){ alert('Export failed'); return; }
+      const blob = await resp.blob(); const url = URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download='candidates_export.xlsx'; a.click(); URL.revokeObjectURL(url);
+      return;
+    }
+
+    // No selection => export ALL rows (all pages) using current filters
+    const form = document.getElementById('search-form');
+    const data = Object.fromEntries(new FormData(form).entries());
+
+    const respAll = await fetch('/candidates/export_all', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':token},
+      body: JSON.stringify(data)
+    });
+    if(!respAll.ok){ alert('Export failed'); return; }
+    const blobAll = await respAll.blob(); const urlAll = URL.createObjectURL(blobAll);
+    const a2=document.createElement('a'); a2.href=urlAll; a2.download='candidates_export.csv'; a2.click(); URL.revokeObjectURL(urlAll);
+  });
+
+  // Master checkbox
+  const selectAll = document.getElementById('select-all');
+  function syncMaster(){
+    const boxes = document.querySelectorAll('.row-checkbox');
+    const checked = document.querySelectorAll('.row-checkbox:checked').length;
+    selectAll.checked = boxes.length && checked === boxes.length;
+    selectAll.indeterminate = checked > 0 && checked < boxes.length;
+  }
+  selectAll?.addEventListener('change', ()=>{
+    document.querySelectorAll('.row-checkbox').forEach(cb=>cb.checked = selectAll.checked);
+    syncMaster();
+  });
+  document.addEventListener('change', (e)=>{
+    if (e.target.classList.contains('row-checkbox')) syncMaster();
+  });
+  syncMaster();
+
+  // Inline status editor (robust)
+  (function(){
+    const CALLING_LIST = ["Screen Select","CNS","Not interested","Not Reachable","Rejected"];
+    const PROFILE_LIST = ["Profile shared with client","Review Pending by client","R2 Pending","R3 Pending","R1 to be schedule",
+                          "R2 scheduled","R3 scheduled","R1 scheduled","F2F Scheduled","Screen Rejected","R1 FBP","R2 FBP","R3 FBP","HR Round","Offered",
+                          "R2 Rejected","R3 Rejected","R1 Rejected"];
+    let openEditor = null;
+    function closeEditor(){ if(openEditor){ openEditor.remove(); openEditor=null; } }
+
+    document.addEventListener('click', (e)=>{
+      const icon = e.target.closest('.status-popover');
+      const inside = openEditor && openEditor.contains(e.target);
+      if (icon) {
+        e.preventDefault();
+        if (openEditor && openEditor === icon.__editor) { closeEditor(); return; }
+        closeEditor();
+        const id = icon.dataset.id;
+        const currentProfile = icon.dataset.profile || '';
+        const currentCalling = icon.dataset.calling || '';
+        const currentDate  = icon.dataset.idate || '';
+        const currentTime  = icon.dataset.itime || '';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'sp2-inline-editor';
+        wrap.innerHTML = `
+          <div class="card">
+            <label class="form-label">Calling status</label>
+            <select class="form-select form-select-sm" id="sp2-calling">
+              ${CALLING_LIST.map(v=>`<option value="${v}" ${v===currentCalling?'selected':''}>${v}</option>`).join('')}
+            </select>
+            <label class="form-label mt-2">Profile status</label>
+            <select class="form-select form-select-sm" id="sp2-profile">
+              ${PROFILE_LIST.map(v=>`<option value="${v}" ${v===currentProfile?'selected':''}>${v}</option>`).join('')}
+            </select>
+            <div class="d-flex gap-2 mt-2">
+              <div class="flex-grow-1">
+                <label class="form-label">Interview date</label>
+                <input type="date" class="form-control form-control-sm" id="sp2-idate" value="${currentDate}">
+              </div>
+              <div class="flex-grow-1">
+                <label class="form-label">Interview time</label>
+                <input type="time" class="form-control form-control-sm" id="sp2-itime" value="${currentTime}">
+              </div>
+            </div>
+            <div class="d-flex justify-content-end gap-2 mt-2">
+              <button class="btn btn-sm btn-primary" id="sp2-save">Save</button>
+              <button class="btn btn-sm btn-outline-secondary" id="sp2-cancel">Cancel</button>
+            </div>
+          </div>`;
+        (document.querySelector('.allc-page')||document.body).appendChild(wrap);
+        icon.__editor = wrap; openEditor = wrap;
+
+        // position
+        const r = icon.getBoundingClientRect();
+        const ed = wrap.querySelector('.card').getBoundingClientRect();
+        let left = window.scrollX + r.left + r.width - (ed.width || 360);
+        left = Math.max(window.scrollX + 8, Math.min(left, window.scrollX + window.innerWidth - (ed.width || 360) - 8));
+        let top = window.scrollY + r.bottom + 6;
+        const h = ed.height || 240;
+        const maxY = window.scrollY + window.innerHeight - h - 8;
+        if (top > maxY) top = Math.max(window.scrollY + 8, window.scrollY + r.top - h - 6);
+        wrap.style.left = left + 'px'; wrap.style.top = top + 'px';
+
+        wrap.querySelector('#sp2-cancel').addEventListener('click', closeEditor);
+        wrap.querySelector('#sp2-save').addEventListener('click', async ()=>{
+          const payload = {
+            calling_status: wrap.querySelector('#sp2-calling').value,
+            profile_status: wrap.querySelector('#sp2-profile').value,
+            interview_date: wrap.querySelector('#sp2-idate').value,
+            interview_time: wrap.querySelector('#sp2-itime').value
+          };
+          try{
+            const resp = await fetch(`/candidate/${id}/status`, {
+              method:'POST',
+              headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token() }}'},
+              body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+            if(!data.ok) throw new Error('save failed');
+            // Update row cells
+            const row = icon.closest('tr');
+            const ths = row.closest('table').querySelectorAll('thead th');
+            let callingIdx=-1, profileIdx=-1;
+            ths.forEach((th,i)=>{
+              const t=(th.textContent||'').trim().toLowerCase();
+              if(t.includes('calling status')) callingIdx=i;
+              if(t.includes('profile status')) profileIdx=i;
+            });
+            if(callingIdx>=0) row.children[callingIdx].textContent = payload.calling_status || '';
+            if(profileIdx>=0) row.children[profileIdx].textContent = payload.profile_status || '';
+            icon.dataset.calling = payload.calling_status || '';
+            icon.dataset.profile = payload.profile_status || '';
+            icon.dataset.idate   = payload.interview_date || '';
+            icon.dataset.itime   = payload.interview_time || '';
+            closeEditor();
+          }catch(e){ alert('Update failed'); }
+        });
+      } else if (openEditor && !inside) {
+        closeEditor();
+      }
+    });
+  })();
+});
+
+
+// Minimal copy-to-clipboard for phone/email copy buttons (non-intrusive)
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  const text = btn.getAttribute('data-copy') || '';
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(()=>{
+    // brief visual feedback without changing layout
+    btn.disabled = true;
+    const prev = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-clipboard-check"></i>';
+    setTimeout(()=>{ btn.innerHTML = prev; btn.disabled = false; }, 900);
+  }).catch(()=>{
+    // fallback: select and copy via textarea
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+  });
+});
+
+
+
+// Toggle state hardening: reflect URL param on load and don't revert
+(function(){
+  var toggle = document.getElementById('added_by_me_toggle');
+  var hidden = document.getElementById('added_by_me_hidden');
+
+  function getParam(){
+    var u = new URL(window.location.href);
+    return u.searchParams.get('added_by_me');
+  }
+  function setParamAndReload(val){
+    if (hidden) hidden.value = val;
+    var u = new URL(window.location.href);
+    u.searchParams.set('added_by_me', val);
+    u.searchParams.delete('page');
+    window.location = u.toString();
+  }
+
+  if (toggle){
+    // Initialize from URL param (default '1' if missing)
+    var p = getParam();
+    if (p === '0') toggle.checked = false;
+    else toggle.checked = true;
+
+    // Keep hidden in sync without forcing checked state
+    if (hidden) hidden.value = toggle.checked ? '1' : '0';
+
+    toggle.addEventListener('change', function(){
+      setParamAndReload(this.checked ? '1' : '0');
+    });
+  }
+})();
+
+// Added-by-me toggle: read from URL and persist without reverting
+(function(){
+  var toggle = document.getElementById('added_by_me_toggle');
+  var hidden = document.getElementById('added_by_me_hidden');
+  function param(){
+    var u = new URL(window.location.href);
+    return u.searchParams.get('added_by_me');
+  }
+  function apply(val){
+    if (hidden) hidden.value = val;
+    var u = new URL(window.location.href);
+    u.searchParams.set('added_by_me', val);
+    u.searchParams.delete('page');
+    window.location = u.toString();
+  }
+  if (toggle){
+    var p = param();
+    toggle.checked = (p === '0') ? false : true; // default ON
+    if (hidden) hidden.value = toggle.checked ? '1' : '0';
+    toggle.addEventListener('change', function(){ apply(this.checked ? '1' : '0'); });
+  }
+})();
+
+</script>
+{% endblock %}
