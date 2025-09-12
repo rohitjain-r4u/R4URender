@@ -205,7 +205,7 @@
         <select name="calling_status" class="form-select">
   <option value="">-- Select --</option>
   <option value="Screen Select" {% if (data.calling_status is defined and data.calling_status=='Screen Select') or (candidate and candidate.calling_status=='Screen Select') %}selected{% endif %}>Screen Select</option>
-  <option value="Shared With Client" {% if (data.calling_status is defined and data.calling_status=='Shared With Client') or (candidate and candidate.calling_status=='Shared With Client') %}selected{% endif %}>Shared With Client</option>
+  <option value="CNS" {% if (data.calling_status is defined and data.calling_status=='CNS') or (candidate and candidate.calling_status=='CNS') %}selected{% endif %}>CNS</option>
   <option value="Not interested" {% if (data.calling_status is defined and data.calling_status=='Not interested') or (candidate and candidate.calling_status=='Not interested') %}selected{% endif %}>Not interested</option>
   <option value="Not Reachable" {% if (data.calling_status is defined and data.calling_status=='Not Reachable') or (candidate and candidate.calling_status=='Not Reachable') %}selected{% endif %}>Not Reachable</option>
   <option value="Rejected" {% if (data.calling_status is defined and data.calling_status=='Rejected') or (candidate and candidate.calling_status=='Rejected') %}selected{% endif %}>Rejected</option>
@@ -220,7 +220,9 @@
   <option value="Review Pending by client" {% if (data.profile_status is defined and data.profile_status=='Review Pending by client') or (candidate and candidate.profile_status=='Review Pending by client') %}selected{% endif %}>Review Pending by client</option>
   <option value="R2 Pending" {% if (data.profile_status is defined and data.profile_status=='R2 Pending') or (candidate and candidate.profile_status=='R2 Pending') %}selected{% endif %}>R2 Pending</option>
   <option value="R3 Pending" {% if (data.profile_status is defined and data.profile_status=='R3 Pending') or (candidate and candidate.profile_status=='R3 Pending') %}selected{% endif %}>R3 Pending</option>
-  <option value="R1 to be schedule" {% if (data.profile_status is defined and data.profile_status=='R1 to be schedule') or (candidate and candidate.profile_status=='R1 to be schedule') %}selected{% endif %}>R1 to be schedule</option>
+  <option value="R1 to be schedule" {% if (data.profile_status is defined and data.profile_status=='R1 to be schedule') or (candidate and candidate.profile_status=='R1 to be schedule') %}selected{% endif %}>R1 to be schedule</option>  
+  <option value="F2F Scheduled" {% if (data.profile_status is defined and data.profile_status=='F2F Scheduled') or (candidate and candidate.profile_status=='HR Round') %}selected{% endif %}>F2F Scheduled</option>
+  <option value="Screen Rejected" {% if (data.profile_status is defined and data.profile_status=='Screen Rejected') or (candidate and candidate.profile_status=='HR Round') %}selected{% endif %}>Screen Rejected</option>
   <option value="R2 scheduled" {% if (data.profile_status is defined and data.profile_status=='R2 scheduled') or (candidate and candidate.profile_status=='R2 scheduled') %}selected{% endif %}>R2 scheduled</option>
   <option value="R3 scheduled" {% if (data.profile_status is defined and data.profile_status=='R3 scheduled') or (candidate and candidate.profile_status=='R3 scheduled') %}selected{% endif %}>R3 scheduled</option>
   <option value="R1 scheduled" {% if (data.profile_status is defined and data.profile_status=='R1 scheduled') or (candidate and candidate.profile_status=='R1 scheduled') %}selected{% endif %}>R1 scheduled</option>

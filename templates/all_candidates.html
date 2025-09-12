@@ -563,6 +563,8 @@ html, body { margin: 0 !important; padding: 0 !important; }
       <option value="R2 scheduled" {% if profile_status=='R2 scheduled' %}selected{% endif %}>R2 scheduled</option>
       <option value="R3 scheduled" {% if profile_status=='R3 scheduled' %}selected{% endif %}>R3 scheduled</option>
       <option value="R1 scheduled" {% if profile_status=='R1 scheduled' %}selected{% endif %}>R1 scheduled</option>
+      <option value="Screen Reject" {% if profile_status=='Screen Reject' %}selected{% endif %}>Screen Reject</option>
+      <option value="F2F Scheduled" {% if profile_status=='F2F Scheduled' %}selected{% endif %}>F2F Scheduled</option>
       <option value="R1 FBP" {% if profile_status=='R1 FBP' %}selected{% endif %}>R1 FBP</option>
       <option value="R2 FBP" {% if profile_status=='R2 FBP' %}selected{% endif %}>R2 FBP</option>
       <option value="R3 FBP" {% if profile_status=='R3 FBP' %}selected{% endif %}>R3 FBP</option>
@@ -804,7 +806,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // Inline status editor (robust)
   (function(){
-    const CALLING_LIST = ["Screen Select","Shared With Client","Not interested","Not Reachable","Rejected"];
+    const CALLING_LIST = ["Screen Select","CNS","Not interested","Not Reachable","Rejected"];
     const PROFILE_LIST = ["Profile shared with client","Review Pending by client","R2 Pending","R3 Pending","R1 to be schedule",
                           "R2 scheduled","R3 scheduled","R1 scheduled","R1 FBP","R2 FBP","R3 FBP","HR Round","Offered",
                           "R2 Rejected","R3 Rejected","R1 Rejected"];

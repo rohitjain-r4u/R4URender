@@ -222,7 +222,7 @@ html, body { margin: 0 !important; padding: 0 !important; }
   <select name="calling_status" id="calling_status" class="form-select form-select-sm">
     <option value="" {% if not calling_status %}selected{% endif %}>Any Calling status</option>
     <option value="Screen Select" {% if calling_status=='Screen Select' %}selected{% endif %}>Screen Select</option>
-    <option value="Shared With Client" {% if calling_status=='Shared With Client' %}selected{% endif %}>Shared With Client</option>
+    <option value="CNS" {% if calling_status=='CNS' %}selected{% endif %}>CNS</option>
     <option value="Not interested" {% if calling_status=='Not interested' %}selected{% endif %}>Not interested</option>
     <option value="Not Reachable" {% if calling_status=='Not Reachable' %}selected{% endif %}>Not Reachable</option>
     <option value="Rejected" {% if calling_status=='Rejected' %}selected{% endif %}>Rejected</option>
@@ -241,6 +241,8 @@ html, body { margin: 0 !important; padding: 0 !important; }
     <option value="R2 scheduled" {% if profile_status=='R2 scheduled' %}selected{% endif %}>R2 scheduled</option>
     <option value="R3 scheduled" {% if profile_status=='R3 scheduled' %}selected{% endif %}>R3 scheduled</option>
     <option value="R1 scheduled" {% if profile_status=='R1 scheduled' %}selected{% endif %}>R1 scheduled</option>
+    <option value="F2F Scheduled" {% if profile_status=='F2F Scheduled' %}selected{% endif %}>F2F Scheduled</option>
+    <option value="Screen Rejected" {% if profile_status=='Screen Rejected' %}selected{% endif %}>Screen Rejected</option>
     <option value="R1 FBP" {% if profile_status=='R1 FBP' %}selected{% endif %}>R1 FBP</option>
     <option value="R2 FBP" {% if profile_status=='R2 FBP' %}selected{% endif %}>R2 FBP</option>
     <option value="R3 FBP" {% if profile_status=='R3 FBP' %}selected{% endif %}>R3 FBP</option>
@@ -424,9 +426,9 @@ document.addEventListener('DOMContentLoaded', function(){
     const st = document.createElement('style'); st.id='sp2-inline-style'; st.textContent = STYLES; document.head.appendChild(st);
   }
 
-  const CALLING_LIST = ["Screen Select","Shared With Client","Not interested","Not Reachable","Rejected"];
+  const CALLING_LIST = ["Screen Select","CNS","Not interested","Not Reachable","Rejected"];
   const PROFILE_LIST = ["Profile shared with client","Review Pending by client","R2 Pending","R3 Pending","R1 to be schedule",
-                        "R2 scheduled","R3 scheduled","R1 scheduled","R1 FBP","R2 FBP","R3 FBP","HR Round","Offered",
+                        "R2 scheduled","R3 scheduled","R1 scheduled","F2F Scheduled","Screen Rejected","R1 FBP","R2 FBP","R3 FBP","HR Round","Offered",
                         "R2 Rejected","R3 Rejected","R1 Rejected"];
 
   let openEditor = null;
