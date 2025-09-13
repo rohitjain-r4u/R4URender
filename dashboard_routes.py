@@ -19,6 +19,33 @@ import json
 import os
 import pathlib
 
+
+
+# === Canonical "Final Stage" matching logic (single source of truth) ===
+# Use FINAL_STAGE_EXACT for normalized exact comparisons and FINAL_STAGE_ILIKE for common variants.
+FINAL_STAGE_EXACT = ('r3 fbp', 'hr round', 'r3 scheduled', 'offered')
+FINAL_STAGE_ILIKE = [
+    '%R3 FBP%', '%R3-FBP%', '%R3_FBP%',
+    '%HR Round%', '%R3 Scheduled%', '%Offered%'
+]
+
+def final_stage_condition_sql(col_name='c.profile_status'):
+    """Return (sql_snippet, params_list) to match canonical final-stage statuses.
+    col_name should be a qualified column name like 'c.profile_status' or "COALESCE(NULLIF(c.profile_status,''), '')".
+    """
+    exact_placeholders = ','.join(['%s'] * len(FINAL_STAGE_EXACT))
+    ilike_placeholders = ','.join(['%s'] * len(FINAL_STAGE_ILIKE))
+    snippet = (
+        "("
+        + f"lower(trim({col_name})) IN ({exact_placeholders})"
+        + f" OR {col_name} ILIKE ANY (ARRAY[{ilike_placeholders}])"
+        + ")"
+    )
+    params = list(FINAL_STAGE_EXACT) + list(FINAL_STAGE_ILIKE)
+    return snippet, params
+
+# === end canonical final-stage ===
+
 dashboard_bp = Blueprint("dashboard_bp", __name__)
 
 # --- Local DB helper (separate from Req_App to avoid circular imports) ---
@@ -191,16 +218,20 @@ def dashboard_data_plus():
                 # compute condition prefix: if base_where already includes WHERE, we need to append AND; otherwise start WHERE
                 cond_prefix = (base_where + " AND ") if (base_where and base_where.strip()) else " WHERE "
 
-                # Final stage candidates: match common variants
-                sql = sql_prefix + cond_prefix + "(" + \
-                      "lower(trim(c.profile_status)) IN ('r3 fbp','hr round','r3 scheduled','offered') " + \
-                      "OR c.profile_status ILIKE ANY (ARRAY[%s,%s,%s,%s,%s,%s])" + \
-                      ")"
-                params = list(base_params) + ['%R3 FBP%','%R3-FBP%','%R3_FBP%','%HR Round%','%R3 Scheduled%','%Offered%']
-                cur.execute(sql, tuple(params))
-                final_stage_candidates = (cur.fetchone() or {}).get('total', 0)
-
-                # R3 rejected
+                # Final stage candidates — use canonical condition helper
+                try:
+                    cond_sql, cond_params = final_stage_condition_sql('c.profile_status')
+                    sql = sql_prefix + cond_prefix + cond_sql
+                    params = list(base_params) + cond_params
+                    cur.execute(sql, tuple(params))
+                    final_stage_candidates = (cur.fetchone() or {}).get('total', 0)
+                except Exception as _kpi_err:
+                    final_stage_candidates = 0
+                    try:
+                        current_app.logger.exception("Error computing final_stage_candidates: %s", _kpi_err)
+                    except Exception:
+                        pass
+# R3 rejected
                 sql = sql_prefix + cond_prefix + "(" + \
                       "lower(trim(c.profile_status)) = 'r3 rejected' OR c.profile_status ILIKE %s" + \
                       ")"
@@ -209,10 +240,28 @@ def dashboard_data_plus():
                 r3_rejected = (cur.fetchone() or {}).get('total', 0)
 
                 # Recent FBP: R1/R2/R3 FBP within last 3 days
-                sql = sql_prefix + cond_prefix + "(" + \
-                      "lower(trim(c.profile_status)) IN ('r1 fbp','r2 fbp','r3 fbp') " + \
-                      "OR c.profile_status ILIKE ANY (ARRAY[%s,%s,%s,%s,%s,%s])" + \
-                      ") AND (c.added_date >= (NOW() - INTERVAL '3 days'))"
+
+                # recent_fbp: candidates currently in FBP state for more than 3 days.
+                try:
+                    ts_col = None
+                    cur.execute("""SELECT column_name FROM information_schema.columns
+                                   WHERE table_schema = 'public' AND table_name = 'candidates'
+                                   AND column_name IN ('profile_status_changed_at', 'profile_status_changed', 'status_changed_at', 'profile_status_date')""")
+                    row = cur.fetchone()
+                    if row:
+                        ts_col = 'c.' + row['column_name']
+                except Exception:
+                    ts_col = None
+
+                if ts_col:
+                    date_cond = f"({{}} <= (NOW() - INTERVAL '3 days'))".format(ts_col)
+                else:
+                    date_cond = "(c.added_date <= (NOW() - INTERVAL '3 days'))"
+
+                sql = sql_prefix + cond_prefix + ("(" +
+                      "lower(trim(c.profile_status)) IN ('r1 fbp','r2 fbp','r3 fbp') " +
+                      "OR c.profile_status ILIKE ANY (ARRAY[%s,%s,%s,%s,%s,%s])" +
+                      ") AND " + date_cond)
                 params = list(base_params) + ['%R1 FBP%','%R2 FBP%','%R3 FBP%','%R1-FBP%','%R2-FBP%','%R3-FBP%']
                 cur.execute(sql, tuple(params))
                 recent_fbp = (cur.fetchone() or {}).get('total', 0)
@@ -297,9 +346,11 @@ def dashboard_drilldown():
     scope = (request.args.get('scope') or '').strip()
     recruiter = (request.args.get('recruiter') or '').strip()
     try:
-        limit = max(50, min(int(request.args.get('limit', 500)), 1000))
+        limit = int(request.args.get('limit', 1000))
+        limit = max(50, min(limit, 5000))
     except Exception:
-        limit = 500
+        limit = 1000
+
 
     me = (session.get('username') or '').strip()
     is_recruiter = (session.get('role') == 'recruiter')
@@ -308,6 +359,7 @@ def dashboard_drilldown():
         with get_db_cursor() as (conn, cur):
             where = []
             params = []
+            html = []
 
             if is_recruiter and me:
                 where.append("r.assigned_to ILIKE %s")
@@ -324,11 +376,14 @@ def dashboard_drilldown():
             elif scope == 'r2_select':
                 where.append("c.profile_status = 'R2 Select'")
             elif scope == 'combined_offer_pipeline':
-                where.append("c.profile_status IN ('R3 FBP', 'HR Round', 'R3 Scheduled', 'Offered')")
+                # Use canonical condition (same as KPI) so counts match exactly
+                cond_sql, cond_params = final_stage_condition_sql('c.profile_status')
+                where.append(cond_sql)
+                params.extend(cond_params)
             elif scope == 'r3_rejected':
                 where.append("c.profile_status = 'R3 Rejected'")
             elif scope == 'recent_fbp':
-              where.append("c.profile_status IN ('R1 FBP', 'R2 FBP' , 'R3 FBP') AND c.added_date >= CURRENT_DATE - INTERVAL '3 days'")
+              where.append("c.profile_status IN ('R1 FBP', 'R2 FBP' , 'R3 FBP') AND c.added_date <= CURRENT_DATE - INTERVAL '3 days'")
             elif scope == 'by_recruiter' and recruiter:
                 where.append("COALESCE(NULLIF(TRIM(c.added_by), ''), 'Unknown') = %s")
                 params.append(recruiter)
@@ -342,7 +397,7 @@ def dashboard_drilldown():
                 where.append("c.added_date::date = CURRENT_DATE - INTERVAL '1 day'")
             else:
                 return "<div class='p-3'>Unsupported scope.</div>", 400
-
+            
             sql = f"""
                 SELECT
                 c.id,
@@ -351,7 +406,8 @@ def dashboard_drilldown():
 c.emails,
                 c.phones,
                 c.current_company,
-                c.current_location, c.profile_status, c.calling_status,
+                c.current_location,
+                c.notice_period, c.profile_status, c.calling_status,
                   c.interview_date, c.interview_time, c.added_by, c.added_date,
                   r.client_name, r.requirement_name
                 FROM candidates c
@@ -384,6 +440,7 @@ c.emails,
                     <th>Profile Status</th>
                     <th>Calling Status</th>
                     <th>Interview</th>
+                    <th>Notice Period</th>
                     <th>Requirement</th>
                     <th>Client</th>
                     <th>Added By</th>
@@ -410,6 +467,7 @@ c.emails,
                     <td><span class="badge bg-primary">{esc(r.get('profile_status')) or '-'}</span></td>
                     <td>{esc(r.get('calling_status')) or '-'}</td>
                     <td>{interview or '-'}</td>
+                    <td>{esc(r.get('notice_period')) or '-'}</td>
                     <td>{esc(r.get('requirement_name'))}</td>
                     <td>{esc(r.get('client_name'))}</td>
                     <td>{esc(r.get('added_by')) or '-'}</td>
@@ -643,7 +701,7 @@ def dashboard_requirement_pipeline_grid():
         for cn in clients:
             val = _h(cn)
             txt = _h(cn)
-            sel_attr = " selected" if cn == client_q else ""
+            sel_attr = ""
             client_options_html.append(f'<option value="{val}"{sel_attr}>{txt or "—"}</option>')
         client_options_html = "".join(client_options_html)
 
@@ -1042,7 +1100,8 @@ def dashboard_recruiter_pipeline_table():
                 <th>Profile Status</th>
                 <th>Calling Status</th>
                 <th>Interview</th>
-                <th>Requirement</th>
+                    <th>Notice Period</th>
+                    <th>Requirement</th>
                 <th>Client</th>
                 <th>Added By</th>
                 <th>Added On</th>

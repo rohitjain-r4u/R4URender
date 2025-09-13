@@ -73,6 +73,22 @@
 /* ensure visible boundaries for tables generated without cand-popup class */
 .popup-table-wrapper table, .popup-table-wrapper th, .popup-table-wrapper td { border: 1px solid var(--border); border-collapse: collapse; }
 
+
+
+.req-summary { width:100%; box-sizing:border-box; margin-top:12px; }
+.req-summary .tile { flex:1 1 160px; min-width:120px; max-width:300px;
+  background:#fff; border-radius:10px; padding:8px; border:1px solid #e5e7eb; text-align:center; }
+.req-summary .val { font-weight:700; font-size:16px; color:#1e3a8a; }
+.req-summary .lbl { font-size:12px; color:#6b7280; }
+
+
+/* Summary tiles - scoped and robust */
+.req-summary{width:100%;box-sizing:border-box;margin:12px 0;padding:8px 12px;background:transparent}
+.req-tiles{display:flex;gap:12px;flex-wrap:nowrap;align-items:center;justify-content:flex-start;overflow-x:auto;padding-bottom:6px}
+.req-tile{background:var(--card-bg,#fff);border:1px solid rgba(15,23,42,0.06);flex:0 0 auto;padding:10px 14px;border-radius:10px;min-width:120px;display:flex;flex-direction:column;align-items:center;box-shadow:0 1px 2px rgba(2,6,23,0.04);margin:4px}
+.req-val{font-size:18px;font-weight:800}
+.req-label{font-size:12px;color:var(--muted,#6b7280);margin-top:6px}
+@media (max-width:900px){ .req-tile{min-width:110px} }
 </style>
 
 <div class="clients-wrapper">
@@ -598,7 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       /* Column width adjustments and wrapping for requirement and assigned columns */
       th:nth-child(1), td:nth-child(1){width:200px;max-width:200px;}
-      H0px;max-width:100px;white-space:normal;word-break:break-word;}
+      th:nth-child(2), td:nth-child(2){max-width:100px;white-space:normal;word-break:break-word;}
       th:nth-child(3), td:nth-child(3){width:120px;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       th:nth-child(4), td:nth-child(4){width: 240px;max-width:240px;white-space:normal;word-break:break-word;}
       th:nth-child(5), td:nth-child(5){width:100px;max-width:100px;}
@@ -672,7 +688,153 @@ document.addEventListener('DOMContentLoaded', () => {
     function rowsToCSV(rows){ const header=['Client Name','Requirement Name','Client POC','Assigned To','Total Candidates','Added (7d)','Not Rejected','R2','R3','HR','Offered']; const csv=[header.join(',')]; rows.forEach(r=>{ const line=[`"${(r.client_name||'').replace(/"/g,'""')}"`,`"${(r.requirement_name||'').replace(/"/g,'""')}"`,`"${(r.client_poc||'').replace(/"/g,'""')}"`,`"${(r.assigned_to||'').replace(/"/g,'""')}"`,r.total_candidates||0,r.candidates_last_7_days||0,r.candidates_not_rejected||0,r.r2_candidates||0,r.r3_candidates||0,r.hr_rounds||0,r.offered_count||0].join(','); csv.push(line); }); return csv.join('\n'); }
 
     // Render table: pagination chips now appended after table
-    function renderTable(rows,page=1,pageSize=100){
+    
+
+
+
+function renderSummary(rows) {
+  try {
+    rows = Array.isArray(rows) ? rows : [];
+    const totals = { reqs:0, total:0, added7:0, notRejected:0, r2:0, r3:0, hr:0, offered:0 };
+    rows.forEach(r => {
+      totals.reqs++;
+      totals.total += Number(r.total_candidates || 0);
+      totals.added7 += Number(r.candidates_last_7_days || r.candidates_added_last_7_days || 0);
+      totals.notRejected += Number(r.candidates_not_rejected || r.candidates_not_rejected_count || 0);
+      totals.r2 += Number(r.r2_candidates || 0);
+      totals.r3 += Number(r.r3_candidates || 0);
+      totals.hr += Number(r.hr_rounds || 0);
+      totals.offered += Number(r.offered_count || 0);
+    });
+
+    const tiles = [
+      {k:'Requirements', v:totals.reqs, color:'var(--accent-blue,#2563eb)', type:'reqs'},
+      {k:'Total Candidates', v:totals.total, color:'var(--accent-green,#10b981)', type:'total'},
+      {k:'Added (7d)', v:totals.added7, color:'var(--accent-orange,#f97316)', type:'added'},
+      {k:'Not Rejected', v:totals.notRejected, color:'var(--accent-purple,#8b5cf6)', type:'not_rejected'},
+      {k:'R2', v:totals.r2, color:'var(--accent-blue,#2563eb)', type:'r2'},
+      {k:'R3', v:totals.r3, color:'var(--accent-yellow,#f59e0b)', type:'r3'},
+      {k:'HR', v:totals.hr, color:'var(--accent-green2,#16a34a)', type:'hr'},
+      {k:'Offered', v:totals.offered, color:'var(--accent-indigo,#7c3aed)', type:'offered'}
+    ];
+
+    // ensure style exists in popup head
+    if (!win.document.getElementById('req-summary-style')) {
+      const style = win.document.createElement('style');
+      style.id = 'req-summary-style';
+      style.type = 'text/css';
+      style.appendChild(win.document.createTextNode(`
+        .req-summary{width:100%;box-sizing:border-box;margin:12px 0;padding:8px 12px;background:transparent}
+        .req-tiles{display:flex;gap:12px;flex-wrap:nowrap;align-items:center;justify-content:flex-start;overflow-x:auto;padding-bottom:6px}
+        .req-tile{background:var(--card-bg,#fff);border:1px solid rgba(15,23,42,0.06);padding:10px 14px;border-radius:10px;min-width:120px;display:flex;flex-direction:column;align-items:center;box-shadow:0 1px 2px rgba(2,6,23,0.04);margin:4px;flex:0 0 auto}
+        .req-val{font-size:18px;font-weight:800}
+        .req-label{font-size:12px;color:var(--muted,#6b7280);margin-top:6px}
+        .summary-num{background:none;border:none;padding:0;margin:0;font:inherit;cursor:pointer;text-decoration:underline}
+        @media (max-width:900px){ .req-tile{min-width:110px} }
+      `));
+      (win.document.head || win.document.getElementsByTagName('head')[0] || win.document.documentElement).appendChild(style);
+    }
+
+    const summaryWrap = win.document.createElement('div');
+    summaryWrap.id = 'req-summary';
+    summaryWrap.className = 'req-summary';
+    const tilesWrap = win.document.createElement('div');
+    tilesWrap.className = 'req-tiles';
+
+    tiles.forEach(t => {
+      const tile = win.document.createElement('div');
+      tile.className = 'req-tile';
+      const val = win.document.createElement('a');
+      val.className = 'req-val summary-num';
+      val.href = '#';
+      val.setAttribute('data-counttype', t.type);
+      val.textContent = t.v;
+      const lbl = win.document.createElement('div');
+      lbl.className = 'req-label';
+      lbl.textContent = t.k;
+      tile.appendChild(val);
+      tile.appendChild(lbl);
+      tilesWrap.appendChild(tile);
+    });
+
+    summaryWrap.appendChild(tilesWrap);
+
+    const container = win.document.getElementById('popup-content');
+    if (!container) return;
+    const existing = container.querySelector('#req-summary');
+    if (existing) existing.remove();
+    const chips = container.querySelector('.chips') || container.querySelector('.filters') || container.querySelector('.chip-row');
+    if (chips) chips.insertAdjacentElement('afterend', summaryWrap);
+    else container.insertAdjacentElement('afterbegin', summaryWrap);
+
+    // delegate clicks: attempt to show relevant rows and then delegate to existing per-row click if user wants
+    tilesWrap.addEventListener('click', function(evt){
+      const a = evt.target.closest('.summary-num');
+      if (!a) return;
+      evt.preventDefault();
+      const type = a.getAttribute('data-counttype');
+      try {
+        // find rows where the .num-link for this type has a numeric > 0
+        const rows = Array.from(container.querySelectorAll('tbody tr'));
+        let shown = 0;
+        rows.forEach(tr => {
+          const cell = tr.querySelector('.num-link[data-counttype=\"' + type + '\"]');
+          if (!cell) {
+            // also check plain numeric cell
+            const alt = tr.querySelector('[data-counttype=\"' + type + '\"]');
+            if (alt && Number(alt.textContent.trim()) > 0) {
+              tr.style.display = '';
+              shown++;
+            } else {
+              tr.style.display = 'none';
+            }
+          } else {
+            const v = Number(cell.textContent.trim()) || 0;
+            if (v > 0) { tr.style.display = ''; shown++; } else tr.style.display = 'none';
+          }
+        });
+        // if none found, show a brief message
+        if (shown === 0) {
+          try { win.alert('No matching candidates found for ' + type); } catch(e){}
+          // restore rows
+          rows.forEach(tr=> tr.style.display='');
+          return;
+        }
+        // scroll to table area
+        const tableTop = container.querySelector('.table-wrap');
+        if (tableTop) tableTop.scrollIntoView({behavior:'smooth', block:'start'});
+        // attach a small temporary banner to inform user rows filtered; clicking banner restores
+        let banner = container.querySelector('#summary-filter-banner');
+        if (!banner) {
+          banner = win.document.createElement('div');
+          banner.id = 'summary-filter-banner';
+          banner.style.padding='8px 12px';
+          banner.style.margin='8px 0';
+          banner.style.border='1px dashed rgba(15,23,42,0.06)';
+          banner.style.background='rgba(15,23,42,0.02)';
+          banner.style.borderRadius='8px';
+          banner.textContent = 'Showing only requirements with >0 ' + type + '. Click here to clear filter.';
+          banner.style.cursor='pointer';
+          banner.onclick = function(){ rows.forEach(tr=> tr.style.display=''); banner.remove(); };
+          const chips = container.querySelector('.chips') || container.querySelector('.filters') || container.querySelector('.chip-row');
+          if (chips) chips.insertAdjacentElement('afterend', banner); else container.insertAdjacentElement('afterbegin', banner);
+        }
+        // after filtering, focus first matching num-link so user can click it to open the detailed candidates
+        const first = container.querySelector('.num-link[data-counttype=\"' + type + '\"]');
+        if (first) try{ first.focus(); }catch(e){}
+      } catch(e){ console.error('summary click handler error', e); }
+    });
+
+  } catch (e) {
+    console.error('renderSummary error', e);
+  }
+}
+
+
+
+
+function renderTable(rows,page=1,pageSize=100){
+  
       const start=(page-1)*pageSize;
       const slice=rows.slice(start,start+pageSize);
       const maxTotal=Math.max(1,...rows.map(r=>Number(r.total_candidates||0)));
@@ -731,7 +893,10 @@ document.addEventListener('DOMContentLoaded', () => {
       // append pagination after table
       html += buildPaginationChips(page, Math.max(1, Math.ceil(rows.length/pageSize)));
       win.document.getElementById('popup-content').innerHTML = html;
-      win.document.getElementById('results-count').textContent = `${rows.length} results`;
+      
+  // insert summary after table HTML so it is not overwritten
+  try{ renderSummary(rows); }catch(e){console.error('renderSummary failed',e);} 
+win.document.getElementById('results-count').textContent = `${rows.length} results`;
       attachHandlers(rows);
     }
 
@@ -773,6 +938,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function applyFiltersAndSearch(rows, overrideFilter){
+    // ----- Summary Renderer -----
+    
+
       let out = rows.slice();
       const filter = overrideFilter || (win.document.querySelector('.chip.active') && win.document.querySelector('.chip.active').getAttribute('data-filter')) || 'all';
       if(filter === 'active') out = out.filter(r => Number(r.total_candidates||0) > 0);
