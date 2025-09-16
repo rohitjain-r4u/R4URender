@@ -147,7 +147,7 @@ def _send_mail_with_retry(subject, plain_body, html_body, to_emails, max_retries
     return False
 
 def _escape(s):
-    return __html.escape('' if s is None else str(s))
+    return _html.escape('' if s is None else str(s))
 
 def _shorten(text, limit=350):
     if not text:
@@ -330,6 +330,7 @@ def send_jd_to_candidates(requirement, candidates, subject_template=None, body_h
     Returns a report dict: {total, sent, failed, skipped, details: [...]}
 
     Note: optional `cur` param used to resolve initiator_user_id -> email via DB when necessary.
+    If cur is not provided, function will attempt to use main.get_db_cursor() to resolve session user id/username -> email.
     """
     try:
         from flask import current_app as app
@@ -348,46 +349,128 @@ def send_jd_to_candidates(requirement, candidates, subject_template=None, body_h
 
     # Resolve initiator email (the logged-in user who started the send)
     initiator_email = None
+    resolved_from = None
     try:
-        # If a raw email string was provided as initiator_user_id, use it
+        # 1) if initiator_user_id is an email string, use it
         if isinstance(initiator_user_id, str) and "@" in initiator_user_id:
             initiator_email = initiator_user_id.strip()
-        else:
-            # Try session (common pattern in your code)
+            resolved_from = "initiator_user_id(email)"
+        # 2) if initiator_user_id looks like id or username and cur is available, try DB
+        if not initiator_email and cur is not None and initiator_user_id:
+            try:
+                if isinstance(initiator_user_id, int) or (isinstance(initiator_user_id, str) and initiator_user_id.isdigit()):
+                    cur.execute("SELECT email FROM users WHERE id = %s", (int(initiator_user_id),))
+                else:
+                    cur.execute("SELECT email FROM users WHERE username = %s OR email = %s", (initiator_user_id, initiator_user_id))
+                row = cur.fetchone()
+                if row:
+                    maybe = row.get('email') if isinstance(row, dict) else (row[0] if len(row) > 0 else None)
+                    if maybe and isinstance(maybe, str) and "@" in maybe:
+                        initiator_email = maybe.strip()
+                        resolved_from = "db(initiator_user_id)"
+            except Exception:
+                if app:
+                    app.logger.exception("send_jd_to_candidates: failed to resolve initiator_user_id email")
+        # 3) check session for many common keys and use DB fallback via get_db_cursor() if needed
+        if not initiator_email:
             try:
                 from main import session
-                if session and isinstance(session, dict):
-                    se = session.get('email') or session.get('user_email') or session.get('user')
-                    if se and isinstance(se, str) and "@" in se:
-                        initiator_email = se.strip()
+                session_keys_to_try = ('email', 'user_email', 'email_address', 'user', 'username', 'user_name', 'userId', 'user_id', 'id')
+                # log keys and masked session (debug)
+                try:
+                    masked = {}
+                    for k, v in dict(session).items():
+                        if isinstance(v, str) and "@" in v:
+                            masked[k] = "***@***"
+                        else:
+                            masked[k] = (str(v)[:32] + '...') if isinstance(v, (str,)) and len(str(v)) > 32 else v
+                    if app:
+                        app.logger.info("send_jd_to_candidates: session snapshot keys=%s", list(session.keys()))
+                        app.logger.debug("send_jd_to_candidates: session (masked)=%s", masked)
+                except Exception:
+                    pass
+
+                for key in session_keys_to_try:
+                    val = session.get(key)
+                    # if direct email found in session
+                    if val and isinstance(val, str) and "@" in val:
+                        initiator_email = val.strip(); resolved_from = f"session[{key}]"; break
+                    # if val is numeric id or username and cur is provided, try cur
+                    if val and cur is not None:
+                        try:
+                            if isinstance(val, int) or (isinstance(val, str) and str(val).isdigit()):
+                                cur.execute("SELECT email FROM users WHERE id = %s", (int(val),))
+                            else:
+                                cur.execute("SELECT email FROM users WHERE username = %s", (val,))
+                            r = cur.fetchone()
+                            maybe = r.get('email') if isinstance(r, dict) else (r[0] if r and len(r) > 0 else None)
+                            if maybe and isinstance(maybe, str) and "@" in maybe:
+                                initiator_email = maybe.strip(); resolved_from = f"session[{key}]->db"; break
+                        except Exception:
+                            pass
+
+                # If still not found and cur not provided, attempt to open a cursor via get_db_cursor()
+                if not initiator_email and cur is None:
+                    try:
+                        from main import get_db_cursor
+                        with get_db_cursor() as (_conn, _cur):
+                            for key in ('user_id', 'id', 'username'):
+                                val = session.get(key)
+                                if not val:
+                                    continue
+                                try:
+                                    if isinstance(val, int) or (isinstance(val, str) and str(val).isdigit()):
+                                        _cur.execute("SELECT email FROM users WHERE id = %s", (int(val),))
+                                    else:
+                                        _cur.execute("SELECT email FROM users WHERE username = %s OR id = %s", (val, val))
+                                    r = _cur.fetchone()
+                                    maybe = r.get('email') if isinstance(r, dict) else (r[0] if r and len(r) > 0 else None)
+                                    if maybe and isinstance(maybe, str) and "@" in maybe:
+                                        initiator_email = maybe.strip(); resolved_from = f"get_db_cursor(session[{key}])"; break
+                                except Exception:
+                                    continue
+                    except Exception:
+                        # get_db_cursor not available or failed; that's fine — we simply won't resolve via DB
+                        pass
+            except Exception:
+                # session import failed or unexpected structure
+                pass
+
+        # 4) try flask_login current_user as last resort
+        if not initiator_email:
+            try:
+                from flask_login import current_user
+                if current_user and hasattr(current_user, 'is_authenticated') and getattr(current_user, 'is_authenticated'):
+                    # try common attributes
+                    for attr in ('email', 'user_email', 'email_address'):
+                        maybe = getattr(current_user, attr, None)
+                        if maybe and isinstance(maybe, str) and "@" in maybe:
+                            initiator_email = maybe.strip(); resolved_from = f"current_user.{attr}"; break
+                    # fallback to username lookups if cur available
+                    if not initiator_email and cur is not None:
+                        uname = getattr(current_user, 'username', None) or getattr(current_user, 'name', None)
+                        if uname:
+                            try:
+                                cur.execute("SELECT email FROM users WHERE username = %s OR id = %s", (uname, uname))
+                                r = cur.fetchone()
+                                maybe = r.get('email') if isinstance(r, dict) else (r[0] if r and len(r) > 0 else None)
+                                if maybe and isinstance(maybe, str) and "@" in maybe:
+                                    initiator_email = maybe.strip(); resolved_from = "current_user->db"
+                            except Exception:
+                                pass
             except Exception:
                 pass
 
-            # If we still don't have it, and a DB cursor is available, attempt to fetch using numeric id or username
-            if not initiator_email and cur is not None and initiator_user_id:
-                try:
-                    # if initiator_user_id looks numeric, try id; otherwise try username
-                    if isinstance(initiator_user_id, int) or (isinstance(initiator_user_id, str) and initiator_user_id.isdigit()):
-                        cur.execute("SELECT email FROM users WHERE id = %s", (int(initiator_user_id),))
-                    else:
-                        cur.execute("SELECT email FROM users WHERE username = %s", (initiator_user_id,))
-                    row = cur.fetchone()
-                    if row:
-                        if isinstance(row, dict):
-                            maybe = row.get('email')
-                        else:
-                            maybe = row[0] if len(row) > 0 else None
-                        if maybe and isinstance(maybe, str) and "@" in maybe:
-                            initiator_email = maybe.strip()
-                except Exception:
-                    if app:
-                        app.logger.exception("send_jd_to_candidates: failed to resolve initiator_user_id email")
-                    # fall through silently
+        # final sanity: ensure string and contains @
+        if initiator_email and isinstance(initiator_email, str) and "@" in initiator_email:
+            initiator_email = initiator_email.strip()
+        else:
+            initiator_email = None
     except Exception:
         initiator_email = None
 
     if app:
-        app.logger.info("send_jd_to_candidates: resolved initiator_email=%s recruiter_email=%s", initiator_email, recruiter_email)
+        app.logger.info("send_jd_to_candidates: resolved initiator_email=%s recruiter_email=%s (from=%s)", initiator_email, recruiter_email, resolved_from)
 
     # simple token function
     def render_template(tpl, cand, req):
@@ -470,7 +553,7 @@ def send_jd_to_candidates(requirement, candidates, subject_template=None, body_h
             )
             if ok:
                 report['sent'] += 1
-                report['details'].append({'candidate_id': cand_id, 'email': primary_email, 'status': 'sent'})
+                report['details'].append({'candidate_id': cand_id, 'email': primary_email, 'status': 'sent', 'cc': cc_final})
             else:
                 report['failed'] += 1
                 report['details'].append({'candidate_id': cand_id, 'email': primary_email, 'status': 'failed', 'error': 'mail helper failed'})
@@ -762,12 +845,42 @@ def send_candidate_interview_email(candidate, requirement=None, interview_date=N
     # try to send via helper
     report = {'total': len(emails), 'sent': 0, 'failed': 0, 'details': []}
     try:
-        ok = _send_mail_with_retry(subject, plain_body, html_body, emails, sender_name=recruiter_display, cc_emails=( [recruiter_email] if recruiter_email else None) )
+        # attempt to include recruiter + initiator in CC where possible
+        # resolve initiator similar to other functions if possible
+        initiator_email = None
+        try:
+            from main import session
+            if session and isinstance(session, dict):
+                for key in ('email', 'user_email', 'email_address', 'user', 'username'):
+                    val = session.get(key)
+                    if val and isinstance(val, str) and "@" in val:
+                        initiator_email = val.strip()
+                        break
+        except Exception:
+            pass
+
+        cc_list = []
+        if recruiter_email:
+            cc_list.append(recruiter_email)
+        if initiator_email:
+            cc_list.append(initiator_email)
+        cc_final = None
+        cc_sanitized = [e.strip() for e in cc_list if e and isinstance(e, str) and e.strip()]
+        if cc_sanitized:
+            seen_cc = {}
+            cc_final = []
+            for e in cc_sanitized:
+                le = e.lower()
+                if le not in seen_cc:
+                    seen_cc[le] = True
+                    cc_final.append(e)
+
+        ok = _send_mail_with_retry(subject, plain_body, html_body, emails, sender_name=recruiter_display, cc_emails=cc_final)
         if ok:
             report['sent'] = len(emails)
-            report['details'].append({'recipients': emails, 'status': 'sent'})
+            report['details'].append({'recipients': emails, 'status': 'sent', 'cc': cc_final})
             if app:
-                app.logger.info("send_candidate_interview_email: sent interview confirmation to %s for candidate %s (reschedule=%s)", emails, candidate.get('candidate_name'), is_reschedule)
+                app.logger.info("send_candidate_interview_email: sent interview confirmation to %s for candidate %s (reschedule=%s) cc=%s", emails, candidate.get('candidate_name'), is_reschedule, cc_final)
         else:
             report['failed'] = len(emails)
             report['details'].append({'recipients': emails, 'status': 'failed', 'error': 'mail send helper returned False'})
@@ -1060,6 +1173,11 @@ def send_jd_using_interview_style(requirement, candidates, cur=None, initiator_u
     if not candidates:
         return report
 
+    try:
+        from flask import current_app as app
+    except Exception:
+        app = None
+
     # Ensure requirement is a full dict by refetching if possible
     if isinstance(requirement, dict) and requirement.get('id') and cur is not None and (not requirement.get('client_name')):
         try:
@@ -1089,36 +1207,82 @@ def send_jd_using_interview_style(requirement, candidates, cur=None, initiator_u
 
     # Resolve initiator email similar to send_jd_to_candidates
     initiator_email = None
+    resolved_from = None
     try:
         if isinstance(initiator_user_id, str) and "@" in initiator_user_id:
             initiator_email = initiator_user_id.strip()
-        else:
+            resolved_from = "initiator_user_id(email)"
+        if not initiator_email and cur is not None and initiator_user_id:
             try:
-                from main import session
-                if session and isinstance(session, dict):
-                    se = session.get('email') or session.get('user_email') or session.get('user')
-                    if se and isinstance(se, str) and "@" in se:
-                        initiator_email = se.strip()
+                if isinstance(initiator_user_id, int) or (isinstance(initiator_user_id, str) and initiator_user_id.isdigit()):
+                    cur.execute("SELECT email FROM users WHERE id = %s", (int(initiator_user_id),))
+                else:
+                    cur.execute("SELECT email FROM users WHERE username = %s OR email = %s", (initiator_user_id, initiator_user_id))
+                row = cur.fetchone()
+                if row:
+                    maybe = row.get('email') if isinstance(row, dict) else (row[0] if len(row) > 0 else None)
+                    if maybe and isinstance(maybe, str) and "@" in maybe:
+                        initiator_email = maybe.strip(); resolved_from = "db(initiator_user_id)"
             except Exception:
                 pass
-            if not initiator_email and cur is not None and initiator_user_id:
-                try:
-                    if isinstance(initiator_user_id, int) or (isinstance(initiator_user_id, str) and initiator_user_id.isdigit()):
-                        cur.execute("SELECT email FROM users WHERE id = %s", (int(initiator_user_id),))
-                    else:
-                        cur.execute("SELECT email FROM users WHERE username = %s", (initiator_user_id,))
-                    crow = cur.fetchone()
-                    if crow:
-                        if isinstance(crow, dict):
-                            maybe = crow.get('email')
-                        else:
-                            maybe = crow[0] if len(crow) > 0 else None
+        if not initiator_email:
+            try:
+                from main import session
+                for key in ('email', 'user_email', 'email_address', 'user', 'username', 'user_name', 'user_id', 'id'):
+                    val = session.get(key)
+                    if val and isinstance(val, str) and "@" in val:
+                        initiator_email = val.strip(); resolved_from = f"session[{key}]"; break
+                    if val and isinstance(val, int) and cur is not None:
+                        try:
+                            cur.execute("SELECT email FROM users WHERE id = %s", (int(val),))
+                            r = cur.fetchone()
+                            maybe = r.get('email') if isinstance(r, dict) else (r[0] if r and len(r) > 0 else None)
+                            if maybe and isinstance(maybe, str) and "@" in maybe:
+                                initiator_email = maybe.strip(); resolved_from = f"session[{key}]->db"; break
+                        except Exception:
+                            pass
+                if not initiator_email and cur is None:
+                    try:
+                        from main import get_db_cursor
+                        with get_db_cursor() as (_conn, _cur):
+                            for key in ('user_id', 'id', 'username'):
+                                val = session.get(key)
+                                if not val:
+                                    continue
+                                try:
+                                    if isinstance(val, int) or (isinstance(val, str) and str(val).isdigit()):
+                                        _cur.execute("SELECT email FROM users WHERE id = %s", (int(val),))
+                                    else:
+                                        _cur.execute("SELECT email FROM users WHERE username = %s OR id = %s", (val, val))
+                                    r = _cur.fetchone()
+                                    maybe = r.get('email') if isinstance(r, dict) else (r[0] if r and len(r) > 0 else None)
+                                    if maybe and isinstance(maybe, str) and "@" in maybe:
+                                        initiator_email = maybe.strip(); resolved_from = f"get_db_cursor(session[{key}])"; break
+                                except Exception:
+                                    continue
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        if not initiator_email:
+            try:
+                from flask_login import current_user
+                if current_user and getattr(current_user, 'is_authenticated', False):
+                    for attr in ('email', 'user_email', 'email_address'):
+                        maybe = getattr(current_user, attr, None)
                         if maybe and isinstance(maybe, str) and "@" in maybe:
-                            initiator_email = maybe.strip()
-                except Exception:
-                    pass
+                            initiator_email = maybe.strip(); resolved_from = f"current_user.{attr}"; break
+            except Exception:
+                pass
+        if initiator_email and isinstance(initiator_email, str) and "@" in initiator_email:
+            initiator_email = initiator_email.strip()
+        else:
+            initiator_email = None
     except Exception:
         initiator_email = None
+
+    if app:
+        app.logger.info("send_jd_using_interview_style: resolved initiator_email=%s recruiter_email=%s (from=%s)", initiator_email, recruiter_email, resolved_from)
 
     try:
         # For each candidate, build payload and send
@@ -1162,7 +1326,7 @@ def send_jd_using_interview_style(requirement, candidates, cur=None, initiator_u
                 )
                 if ok:
                     report['sent'] += 1
-                    report['details'].append({'candidate': c, 'status': 'sent'})
+                    report['details'].append({'candidate': c, 'status': 'sent', 'cc': cc_final})
                     if persist_audit and isinstance(cur, object):
                         try:
                             cur.execute("INSERT INTO email_audit (candidate_id, requirement_id, to_email, subject, status, created_at, sent_by) VALUES (%s,%s,%s,%s,%s,NOW(),%s)",
