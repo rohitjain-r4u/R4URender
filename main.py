@@ -62,6 +62,10 @@ app.config['MAIL_DEFAULT_SENDER'] = ('Recruitment Portal', EMAIL_USER)
 
 mail = Mail(app)
 
+
+# notifications moved to emails.py
+from emails import send_requirement_email, parse_assigned_csv
+
 app.secret_key = 'ueueuweujfjdjsdjsdsjdajsdajsdlajsdlajdlajd'  # Change this to a secure secret in production
 csrf = CSRFProtect(app)
 # Safe url_for helper to avoid Jinja BuildError when an endpoint is missing (temporary debugging aid)
@@ -469,46 +473,6 @@ from flask import request, redirect, url_for, flash, render_template, session
 from werkzeug.security import generate_password_hash  # keep this at top with imports
 
 
-def send_requirement_email(requirement, assigned_users):
-    """Send requirement details to recruiters/admins."""
-    if not assigned_users:
-        return
-
-    subject = f"New Requirement Assigned: {requirement['requirement_name']}"
-    body = f"""
-    Dear Recruiter,
-
-    A new requirement has been assigned to you.
-
-    Client: {requirement['client_name']}
-    Client POC: {requirement.get('client_poc','')}
-    Requirement: {requirement['requirement_name']}
-    Experience: {requirement['experience']}
-    Skills: {requirement['mandatory_skills']}
-    Location: {requirement['job_locations']}
-    Budget: {requirement['budget']}
-    Description: {requirement['job_description']}
-    Status: {requirement['status']}
-
-    Please log in to the portal for full details.
-    """
-
-    with get_db_cursor() as (conn, cur):
-        cur.execute("SELECT email FROM users WHERE username = ANY(%s)", (assigned_users,))
-        rows = cur.fetchall()
-        emails = [r['email'] for r in rows if r.get('email')]
-
-    if not emails:
-        app.logger.warning("No email IDs found for assigned users: %s", assigned_users)
-        return
-
-    try:
-        msg = Message(subject=subject, recipients=emails, body=body)
-        mail.send(msg)
-        app.logger.info("Requirement emails sent to: %s", emails)
-    except Exception:
-        app.logger.exception("Failed to send requirement email")
-
 
 # --- USER MANAGEMENT ---
 
@@ -566,7 +530,7 @@ def add_requirement():
                 cur.execute("SELECT * FROM requirements WHERE id = %s", (new_id,))
                 req = cur.fetchone()
                 assigned_users = [u.strip() for u in (req['assigned_to'] or '').split(',') if u.strip()]
-                send_requirement_email(req, assigned_users)
+                send_requirement_email(req, assigned_users, action='created')
 
                 return redirect(url_for('requirements'))
 
@@ -642,6 +606,12 @@ def update_requirement(req_id):
                         assigned_usernames = [u.strip() for u in requirement['assigned_to'].split(',') if u.strip()]
                     return render_template('update_requirement.html', requirement=requirement, recruiters=recruiters, assigned_usernames=assigned_usernames)
 
+                
+                # BEFORE UPDATE: fetch previous assigned_to to compute diff
+                cur.execute("SELECT assigned_to FROM requirements WHERE id = %s FOR UPDATE", (req_id,))
+                _row_before = cur.fetchone()
+                old_assigned = parse_assigned_csv(_row_before.get('assigned_to') if _row_before else '')
+
                 cur.execute("""
                     UPDATE requirements SET
                         client_name = %s,
@@ -680,10 +650,27 @@ def update_requirement(req_id):
                 conn.commit()
                 flash('Requirement updated successfully!', 'success')
 
+                
                 cur.execute("SELECT * FROM requirements WHERE id = %s", (req_id,))
                 req = cur.fetchone()
-                assigned_users = [u.strip() for u in (req['assigned_to'] or '').split(',') if u.strip()]
-                send_requirement_email(req, assigned_users)
+                new_assigned = parse_assigned_csv(req.get('assigned_to') if req else '')
+
+                # compute newly added assignees only (avoid emailing existing ones again)
+                added = sorted(set(new_assigned) - set(old_assigned))
+
+                if added:
+                    try:
+                        send_requirement_email(req, added, action='created', cur=cur)
+                    except Exception:
+                        app.logger.exception("update_requirement: failed to notify newly added recruiters")
+
+                # Optional: notify all current assignees about general updates (disabled by default)
+                notify_on_nonassign_changes = False
+                if notify_on_nonassign_changes:
+                    try:
+                        send_requirement_email(req, new_assigned, action='updated', cur=cur)
+                    except Exception:
+                        app.logger.exception("update_requirement: failed to notify assignees about update")
 
                 return redirect(url_for('requirements', status='Active'))
 
@@ -1065,6 +1052,7 @@ def candidate_partial(cand_id):
 
 
 @app.route('/candidate/<int:cand_id>/status', methods=['POST'])
+
 def update_candidate_status(cand_id):
     if 'user_id' not in session:
         return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
@@ -1074,7 +1062,17 @@ def update_candidate_status(cand_id):
         profile_status = (data.get('profile_status') or '').strip()
         interview_date = (data.get('interview_date') or '').strip()
         interview_time = (data.get('interview_time') or '').strip()
+
         with get_db_cursor() as (conn, cur):
+            # fetch existing candidate to check previous interview values
+            cur.execute("SELECT id, candidate_name, emails, interview_date, interview_time, requirement_id, job_title FROM candidates WHERE id = %s", (cand_id,))
+            before = cur.fetchone()
+            if not before:
+                return jsonify({'ok': False, 'error': 'not_found'}), 404
+
+            prev_date = before.get('interview_date') or ''
+            prev_time = before.get('interview_time') or ''
+
             sets = []
             params = []
             if calling_status != '':
@@ -1083,7 +1081,7 @@ def update_candidate_status(cand_id):
             if profile_status != '':
                 sets.append("profile_status = %s")
                 params.append(profile_status)
-            # empty -> NULL to clear
+            # set interview_date/time (NULL if empty)
             sets.append("interview_date = %s"); params.append(interview_date if interview_date else None)
             sets.append("interview_time = %s"); params.append(interview_time if interview_time else None)
             sets.append("updated_date = now()")
@@ -1091,6 +1089,31 @@ def update_candidate_status(cand_id):
             params.append(cand_id)
             cur.execute(sql, tuple(params))
             conn.commit()
+
+            # Decide whether to email: send when previously missing date or time and now both are present
+            prev_missing = (not prev_date) or (not prev_time)
+            now_present = bool(interview_date) and bool(interview_time)
+            send_email = prev_missing and now_present
+
+            if send_email:
+                try:
+                    cur.execute("SELECT id, requirement_name, job_description FROM requirements WHERE id = %s", (before.get('requirement_id'),))
+                    req = cur.fetchone()
+                except Exception:
+                    req = None
+
+                candidate_for_email = {
+                    'candidate_name': before.get('candidate_name') or '',
+                    'emails': before.get('emails') or [],
+                    'job_title': before.get('job_title') or ''
+                }
+
+                try:
+                    from emails import send_candidate_interview_email
+                    send_candidate_interview_email(candidate_for_email, requirement=req, interview_date=interview_date, interview_time=interview_time, cur=cur)
+                except Exception:
+                    app.logger.exception("Failed to send candidate interview email for candidate id %s", cand_id)
+
             return jsonify({'ok': True})
     except Exception:
         app.logger.exception("Error updating candidate status inline")
@@ -1850,3 +1873,70 @@ def api_import_save():
     rows = data.get("rows", [])
     inserted = len(rows)
     return jsonify({"ok": True, "saved": inserted})
+
+
+def update_candidate_status(cand_id):
+    if 'user_id' not in session:
+        return jsonify({'ok': False, 'error': 'unauthenticated'}), 401
+    try:
+        data = request.get_json(silent=True) or {}
+        calling_status = (data.get('calling_status') or '').strip()
+        profile_status = (data.get('profile_status') or '').strip()
+        interview_date = (data.get('interview_date') or '').strip()
+        interview_time = (data.get('interview_time') or '').strip()
+
+        with get_db_cursor() as (conn, cur):
+            # fetch existing candidate to check previous interview values
+            cur.execute("SELECT id, candidate_name, emails, interview_date, interview_time, requirement_id, job_title FROM candidates WHERE id = %s", (cand_id,))
+            before = cur.fetchone()
+            if not before:
+                return jsonify({'ok': False, 'error': 'not_found'}), 404
+
+            prev_date = before.get('interview_date') or ''
+            prev_time = before.get('interview_time') or ''
+
+            sets = []
+            params = []
+            if calling_status != '':
+                sets.append("calling_status = %s")
+                params.append(calling_status)
+            if profile_status != '':
+                sets.append("profile_status = %s")
+                params.append(profile_status)
+            # set interview_date/time (NULL if empty)
+            sets.append("interview_date = %s"); params.append(interview_date if interview_date else None)
+            sets.append("interview_time = %s"); params.append(interview_time if interview_time else None)
+            sets.append("updated_date = now()")
+            sql = "UPDATE candidates SET " + ", ".join(sets) + " WHERE id = %s"
+            params.append(cand_id)
+            cur.execute(sql, tuple(params))
+            conn.commit()
+
+            # Decide whether to email: send when previously missing date or time and now both are present
+            prev_missing = (not prev_date) or (not prev_time)
+            now_present = bool(interview_date) and bool(interview_time)
+            send_email = prev_missing and now_present
+
+            if send_email:
+                try:
+                    cur.execute("SELECT id, requirement_name, job_description FROM requirements WHERE id = %s", (before.get('requirement_id'),))
+                    req = cur.fetchone()
+                except Exception:
+                    req = None
+
+                candidate_for_email = {
+                    'candidate_name': before.get('candidate_name') or '',
+                    'emails': before.get('emails') or [],
+                    'job_title': before.get('job_title') or ''
+                }
+
+                try:
+                    from emails import send_candidate_interview_email
+                    send_candidate_interview_email(candidate_for_email, requirement=req, interview_date=interview_date, interview_time=interview_time, cur=cur)
+                except Exception:
+                    app.logger.exception("Failed to send candidate interview email for candidate id %s", cand_id)
+
+            return jsonify({'ok': True})
+    except Exception:
+        app.logger.exception("Error updating candidate status inline")
+        return jsonify({'ok': False, 'error': 'server_error'}), 500

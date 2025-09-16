@@ -539,6 +539,89 @@ def commit_candidates():
             inserted += 1
 
         conn.commit()
+
+        # --- POST-COMMIT: best-effort send GD/JD emails to inserted candidates ---
+        try:
+            # import here to avoid changing top-level imports
+            import emails
+            # Build minimal requirement dict
+            requirement = {'id': requirement_id}
+            try:
+                cur.execute("SELECT * FROM requirements WHERE id = %s", (requirement_id,))
+                req_row = cur.fetchone()
+                if req_row:
+                    try:
+                        cols = [d.name if hasattr(d, 'name') else d[0] for d in cur.description]
+                        requirement = dict(zip(cols, req_row))
+                    except Exception:
+                        try:
+                            requirement = dict(req_row)
+                        except Exception:
+                            requirement = {'id': requirement_id}
+            except Exception:
+                requirement = {'id': requirement_id}
+
+            # Find uploaded headers mapped to email-like DB columns
+            email_uploaded_keys = []
+            try:
+                for uploaded_col, db_col in (mapping or {}).items():
+                    if not db_col:
+                        continue
+                    if isinstance(db_col, str) and 'email' in db_col.lower():
+                        email_uploaded_keys.append(uploaded_col)
+            except Exception:
+                email_uploaded_keys = []
+
+            # Fallback: uploaded header names containing 'email'
+            if not email_uploaded_keys:
+                try:
+                    for uploaded_col in (mapping or {}).keys():
+                        if 'email' in str(uploaded_col).lower():
+                            email_uploaded_keys.append(uploaded_col)
+                except Exception:
+                    pass
+
+            # Build simple candidates list with primary_email only (as expected by emails.send_requirement_jd)
+            candidates_to_send = []
+            for r_row in (rows or []):
+                if not isinstance(r_row, dict):
+                    continue
+                primary = None
+                for ek in email_uploaded_keys:
+                    val = r_row.get(ek)
+                    if not val:
+                        continue
+                    if isinstance(val, list) and val:
+                        primary = str(val[0]).strip()
+                    else:
+                        # take first of comma-separated if present
+                        sval = str(val).strip()
+                        if ',' in sval:
+                            primary = sval.split(',')[0].strip()
+                        else:
+                            primary = sval
+                    if primary:
+                        break
+                if primary:
+                    candidates_to_send.append({
+                        'id': None,
+                        'candidate_name': '',
+                        'primary_email': primary
+                    })
+
+            # Call the email helper (best-effort)
+            if candidates_to_send:
+                try:
+                    emails.send_requirement_jd(requirement, candidates_to_send, initiator_user_id=added_by_value)
+                except Exception as e_send:
+                    try:
+                        print("Post-import email send failed:", e_send)
+                    except Exception:
+                        pass
+        except Exception:
+            # swallow any errors here so import result is unaffected
+            pass
+        # --- END POST-COMMIT EMAIL ---
     except Exception as e:
         conn.rollback()
         # Return the first ~300 chars so you can see the actual DB cause

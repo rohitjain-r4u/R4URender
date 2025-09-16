@@ -35,8 +35,7 @@
   </div>
 
   <!-- Actions -->
-  
-
+  <div class="mt-3">
     <form id="finalizeForm"
           method="post"
           action="/candidates/import/commit"
@@ -46,10 +45,30 @@
       <textarea name="edited_data" id="edited_data" hidden></textarea>
       <input type="hidden" name="mapping" id="mapping" />
       <input type="hidden" name="requirement_id" value="{{ req_id or session.get('requirement_id') or '' }}">
-      <button type="submit" class="btn btn-success">
+      <button type="submit" id="finalizeBtn" class="btn btn-success">
         Finalize Import
       </button>
+      <!-- Send JD removed as requested -->
     </form>
+  </div>
+</div>
+
+<!-- 🔄 Processing Overlay (hidden by default) -->
+<div id="processingOverlay" style="
+  display:none;
+  position:fixed;
+  top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.45);
+  z-index:2000;
+  text-align:center;
+  color:#fff;
+  font-size:1.15rem;
+  font-weight:600;
+  padding-top:18vh;
+">
+  <div class="d-inline-block bg-transparent p-4 rounded" style="backdrop-filter: blur(2px);">
+    <div class="spinner-border text-light" role="status" style="width:3rem; height:3rem;"></div>
+    <div class="mt-3">Processing import… please wait</div>
   </div>
 </div>
 
@@ -98,9 +117,9 @@ function collectEdits() {
   // Ensure requirement_id is populated:
   const urlParams = new URLSearchParams(window.location.search);
   const fromUrl = urlParams.get('req_id') || urlParams.get('requirement_id');
-  const hidden = (document.querySelector('input[name=\"requirement_id\"]') || {}).value || '';
+  const hidden = (document.querySelector('input[name="requirement_id"]') || {}).value || '';
   const finalReq = (fromUrl && fromUrl !== 'None') ? fromUrl : (hidden && hidden !== 'None' ? hidden : (localStorage.getItem('requirement_id') || ''));
-  const reqInput = document.querySelector('input[name=\"requirement_id\"]');
+  const reqInput = document.querySelector('input[name="requirement_id"]');
   if (reqInput) reqInput.value = finalReq;
   if (finalReq) localStorage.setItem('requirement_id', finalReq);
 }
@@ -110,28 +129,62 @@ async function submitFinalize(event) {
   event.preventDefault();
   collectEdits();
 
+  const overlay = document.getElementById("processingOverlay");
+  const finalizeBtn = document.getElementById("finalizeBtn");
+
+  // Show overlay and disable button to prevent duplicate submits
+  overlay.style.display = "block";
+  if (finalizeBtn) {
+    finalizeBtn.disabled = true;
+    finalizeBtn.classList.add('disabled');
+    finalizeBtn.setAttribute('aria-disabled', 'true');
+  }
+
   const form = document.getElementById("finalizeForm");
   const formData = new FormData(form);
 
   try {
     const resp = await fetch(form.action, { method: "POST", body: formData });
-    const result = await resp.json();
+    let result = {};
+    try {
+      result = await resp.json();
+    } catch (e) {
+      // non-json response
+      result = {};
+    }
 
     if (resp.ok && result.status === "ok") {
-      alert("✅ Candidates imported successfully (" + result.rows_inserted + " rows).");
+      // show success toast/alert then redirect
+      alert("✅ Candidates imported successfully (" + (result.rows_inserted || 0) + " rows).");
 
       // Redirect using requirement_id actually submitted
-      const reqId = (form.querySelector('input[name=\"requirement_id\"]') || {}).value || '';
+      const reqId = (form.querySelector('input[name="requirement_id"]') || {}).value || '';
       if (reqId) {
         window.location.href = `/requirement/${reqId}/candidates`;
       } else {
         window.location.href = `/`;
       }
     } else {
-      alert("❌ Import failed: " + (result.message || "Unknown error"));
+      // Show meaningful error and re-enable for retry
+      const errMsg = result.message || ("Import failed. Server returned status " + resp.status);
+      alert("❌ Import failed: " + errMsg);
+      // Re-enable if failed so user can retry after fixing issues
+      if (finalizeBtn) {
+        finalizeBtn.disabled = false;
+        finalizeBtn.classList.remove('disabled');
+        finalizeBtn.removeAttribute('aria-disabled');
+      }
     }
   } catch (err) {
-    alert("❌ Import failed due to server error.");
+    alert("❌ Import failed due to server error: " + (err && err.message ? err.message : err));
+    if (finalizeBtn) {
+      finalizeBtn.disabled = false;
+      finalizeBtn.classList.remove('disabled');
+      finalizeBtn.removeAttribute('aria-disabled');
+    }
+  } finally {
+    // Hide overlay when done (if successful we are redirecting anyway)
+    overlay.style.display = "none";
   }
 }
 </script>
