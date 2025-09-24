@@ -2,7 +2,12 @@
 import time
 import json
 import html as _html
+import os
+import requests
+from threading import Thread
+from time import sleep
 from datetime import datetime
+
 
 # kept for compatibility if Flask-Mail is available
 try:
@@ -44,14 +49,26 @@ def _fetch_emails_for_usernames(cur, usernames):
             out[uname] = em
     return out
 
-def _send_mail_with_retry(subject, plain_body, html_body, to_emails, max_retries=3, sender_name=None, cc_emails=None, use_bcc=True):
-    """Send mail via Flask-Mail with retry/backoff.
-    If use_bcc is True (default), messages are sent with To=<internal sender> and BCC=recipients.
-    If use_bcc is False, recipients are placed in the To: header directly (one-to-one style).
-
-    sender_name: optional display name to include in From header (e.g. "John Smith").
-    cc_emails: optional list of email addresses to CC (e.g. logged-in user's email).
+def _send_mail_with_retry(subject, plain_body, html_body, to_emails, max_retries=3,
+                          sender_name=None, cc_emails=None, use_bcc=True, background=True):
     """
+    Brevo primary -> SMTP fallback.
+    Ensures Flask-Mail runs inside app.app_context() when needed (fixes "Working outside of application context").
+    background=True (default) -> spawns a daemon thread; the thread will establish app.app_context() for SMTP.
+    """
+    # local imports so this block can be copy/pasted easily
+    import os
+    from time import sleep
+    try:
+        import requests
+    except Exception:
+        requests = None
+    try:
+        from threading import Thread
+    except Exception:
+        Thread = None
+
+    # Import your app/mail (same as original)
     try:
         from main import app, EMAIL_USER, mail
     except Exception:
@@ -59,14 +76,33 @@ def _send_mail_with_retry(subject, plain_body, html_body, to_emails, max_retries
         EMAIL_USER = None
         mail = None
 
+    try:
+        from flask_mail import Message
+    except Exception:
+        Message = None
+
+    app_logger = getattr(app, "logger", None) if app else None
+
+    # Validate recipients
     if not to_emails:
-        if app:
-            app.logger.info("_send_mail_with_retry: no recipients, skipping")
+        if app_logger:
+            app_logger.info("_send_mail_with_retry: no recipients provided, skipping send")
         return False
 
-    uniq_emails = list(dict.fromkeys(to_emails))
+    # Normalize recipients
+    if isinstance(to_emails, (list, tuple)):
+        uniq_emails = list(dict.fromkeys([e for e in to_emails if e]))
+    elif isinstance(to_emails, str):
+        uniq_emails = [to_emails]
+    else:
+        uniq_emails = list(to_emails) if to_emails else []
+    if not uniq_emails:
+        if app_logger:
+            app_logger.info("_send_mail_with_retry: recipients empty after normalization, skipping")
+        return False
 
-    default_sender = None
+    # Resolve sender email (preserve previous behavior)
+    sender_email = None
     try:
         default_sender = app.config.get('MAIL_DEFAULT_SENDER') if app else None
     except Exception:
@@ -77,74 +113,171 @@ def _send_mail_with_retry(subject, plain_body, html_body, to_emails, max_retries
     else:
         sender_email = default_sender or EMAIL_USER or "no-reply@example.com"
 
-    # Build display name + email for message sender. Use provided sender_name if present.
     if sender_name:
-        # standard display: "Full Name <email@domain>"
         sender_formatted = f"{sender_name} <{sender_email}>"
     else:
         sender_formatted = f"ATS Portal <{sender_email}>"
 
-    # prepare cc list if present
+    # Normalize CC
     cc_list = None
     if cc_emails:
         if isinstance(cc_emails, (list, tuple)):
             cc_list = list(dict.fromkeys([e for e in cc_emails if e]))
         elif isinstance(cc_emails, str) and cc_emails.strip():
             cc_list = [cc_emails.strip()]
-        else:
-            cc_list = None
 
-    for attempt in range(1, max_retries + 1):
-        try:
-            if mail is None:
-                # mail not configured — log and return True to avoid breaking flows in non-prod
-                if app:
-                    app.logger.info("_send_mail_with_retry: mail not configured; skipping actual send for %s", uniq_emails)
-                return True
+    # --- Brevo API helper (sync) ---
+    def _send_via_brevo_api():
+        if requests is None:
+            if app_logger:
+                app_logger.warning("_send_via_brevo_api: requests not installed")
+            return False
 
-            # prepare Message parameters
-            if use_bcc:
-                msg_kwargs = dict(
-                    subject=subject,
-                    recipients=[sender_email],  # To header (internal)
-                    bcc=uniq_emails,
-                    body=plain_body,
-                    html=html_body,
-                    sender=sender_formatted
-                )
-            else:
-                # one-to-one behavior: recipients in To header
-                msg_kwargs = dict(
-                    subject=subject,
-                    recipients=uniq_emails,
-                    body=plain_body,
-                    html=html_body,
-                    sender=sender_formatted
-                )
+        api_key = os.environ.get("BREVO_API_KEY")
+        if not api_key:
+            if app_logger:
+                app_logger.warning("_send_via_brevo_api: BREVO_API_KEY not set")
+            return False
 
-            # include cc if provided
+        uniq_to = list(dict.fromkeys([e for e in uniq_emails if isinstance(e, str) and e]))
+        payload = {
+            "sender": {"name": sender_name or "ATS Portal", "email": sender_email},
+            "subject": subject or "",
+            "htmlContent": html_body or "",
+            "textContent": plain_body or "",
+        }
+
+        if use_bcc:
+            payload["to"] = [{"email": sender_email}]
+            payload["bcc"] = [{"email": e} for e in uniq_to]
             if cc_list:
-                msg_kwargs['cc'] = cc_list
+                payload["cc"] = [{"email": e} for e in cc_list]
+        else:
+            payload["to"] = [{"email": e} for e in uniq_to]
+            if cc_list:
+                payload["cc"] = [{"email": e for e in cc_list}]
 
-            # If Flask-Mail Message class or mail instance is unavailable, simulate send in dev
-            if Message is None or mail is None:
-                if app:
-                    app.logger.info("_send_mail_with_retry: Message or mail not available; simulating send to %s", uniq_emails)
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "api-key": api_key
+        }
+        url = "https://api.brevo.com/v3/smtp/email"
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                resp = requests.post(url, json=payload, headers=headers, timeout=10)
+                if 200 <= resp.status_code < 300:
+                    if app_logger:
+                        app_logger.info("_send_via_brevo_api: success status=%s recipients=%s", resp.status_code, uniq_to)
+                    return True
+                else:
+                    if app_logger:
+                        txt = getattr(resp, "text", "")[:400]
+                        app_logger.warning("_send_via_brevo_api: non-2xx (attempt %s) status=%s resp=%s", attempt, resp.status_code, txt)
+            except Exception:
+                if app_logger:
+                    app_logger.exception("_send_via_brevo_api: exception on attempt %s", attempt)
+            sleep(0.5 * attempt)
+
+        if app_logger:
+            app_logger.error("_send_via_brevo_api: all attempts failed for recipients=%s", uniq_to)
+        return False
+
+    # --- SMTP helper (ensures app.app_context() when calling mail.send) ---
+    def _send_via_smtp():
+        # If Flask-Mail or Message not available, behave like previous code (log and return True to avoid breaking callers)
+        if mail is None or Message is None:
+            if app_logger:
+                app_logger.info("_send_via_smtp: Flask-Mail not configured or Message missing, skipping SMTP send")
+            return True
+
+        # prepare cc list (already computed)
+        for attempt in range(1, max_retries + 1):
+            try:
+                if use_bcc:
+                    msg_kwargs = dict(
+                        subject=subject,
+                        recipients=[sender_email],
+                        bcc=uniq_emails,
+                        body=plain_body,
+                        html=html_body,
+                        sender=sender_formatted
+                    )
+                else:
+                    msg_kwargs = dict(
+                        subject=subject,
+                        recipients=uniq_emails,
+                        body=plain_body,
+                        html=html_body,
+                        sender=sender_formatted
+                    )
+                if cc_list:
+                    msg_kwargs['cc'] = cc_list
+
+                msg = Message(**msg_kwargs)
+
+                # IMPORTANT: ensure we have an application context when calling mail.send
+                if app is not None:
+                    try:
+                        with app.app_context():
+                            mail.send(msg)
+                    except Exception:
+                        # If app.app_context() fails for any reason, still try to call mail.send directly
+                        # so that behavior matches prior code in non-standard setups
+                        mail.send(msg)
+                else:
+                    # No app found, fall back to direct send (may raise)
+                    mail.send(msg)
+
+                if app_logger:
+                    app_logger.info("_send_via_smtp: SMTP sent '%s' recipients=%s bcc=%s cc=%s", subject, msg_kwargs.get('recipients'), msg_kwargs.get('bcc'), msg_kwargs.get('cc'))
                 return True
+            except Exception:
+                if app_logger:
+                    app_logger.exception("_send_via_smtp: SMTP attempt %s failed", attempt)
+                sleep(0.5 * attempt)
 
-            msg = Message(**msg_kwargs)
-            mail.send(msg)
-            if app:
-                app.logger.info("_send_mail_with_retry: sent '%s' (recipients=%s bcc=%s cc=%s)", subject, msg_kwargs.get('recipients'), msg_kwargs.get('bcc'), msg_kwargs.get('cc'))
+        if app_logger:
+            app_logger.error("_send_via_smtp: all SMTP attempts failed for %s", uniq_emails)
+        return False
+
+    # --- core synchronous flow ---
+    def _core_send():
+        try:
+            if _send_via_brevo_api():
+                return True
+        except Exception:
+            if app_logger:
+                app_logger.exception("_core_send: unexpected exception from Brevo attempt")
+
+        # Brevo unavailable or failed -> fallback to SMTP
+        return _send_via_smtp()
+
+    # --- background wrapper that sets app.app_context() for SMTP usage inside the thread ---
+    def _start_background(fn):
+        if Thread is None:
+            if app_logger:
+                app_logger.warning("_send_mail_with_retry: threading not available; running sync")
+            return fn()
+        try:
+            # If app exists, we will start a thread which enters app.app_context() when needed in _send_via_smtp
+            t = Thread(target=fn, daemon=True)
+            t.start()
+            if app_logger:
+                app_logger.debug("_send_mail_with_retry: background thread started for recipients=%s", uniq_emails)
             return True
         except Exception:
-            if app:
-                app.logger.exception("_send_mail_with_retry: attempt %s failed", attempt)
-            time.sleep(0.5 * attempt)
+            if app_logger:
+                app_logger.exception("_send_mail_with_retry: failed to start background thread; running sync")
+            return fn()
 
-    if app:
-        app.logger.error("_send_mail_with_retry: all attempts failed for %s", uniq_emails)
-    return False
+    # Execute
+    if background:
+        return _start_background(_core_send)
+    else:
+        # run sync (ensure smtp path will create app_context inside _send_via_smtp)
+        return _core_send()
 
 def _escape(s):
     return _html.escape('' if s is None else str(s))
@@ -569,6 +702,90 @@ def send_jd_to_candidates(requirement, candidates, subject_template=None, body_h
 
 
 # ---- NEW / REFRACTORED HELPERS FOR INTERVIEW EMAIL ----
+
+# --------- New helper: send via Brevo API (sync) ----------
+def _send_via_brevo_api(subject, plain_body, html_body, to_emails,
+                        sender_email, sender_name=None,
+                        cc_emails=None, bcc_emails=None,
+                        use_bcc=True,
+                        api_key_env='BREVO_API_KEY',
+                        max_retries=3, timeout=10, app_logger=None):
+    """
+    Synchronously POST to Brevo transactional endpoint:
+      POST https://api.brevo.com/v3/smtp/email
+    Returns True on success (2xx), False on permanent failure.
+    """
+    if not to_emails:
+        if app_logger:
+            app_logger.info("_send_via_brevo_api: empty recipients, skipping")
+        return False
+
+    api_key = os.environ.get(api_key_env)
+    if not api_key:
+        if app_logger:
+            app_logger.warning("_send_via_brevo_api: %s not set", api_key_env)
+        return False
+
+    # Normalize lists
+    uniq_to = list(dict.fromkeys([e for e in (to_emails or []) if e and isinstance(e, str)]))
+    cc = list(dict.fromkeys([e for e in (cc_emails or []) if e and isinstance(e, str)])) if cc_emails else None
+    bcc = list(dict.fromkeys([e for e in (bcc_emails or []) if e and isinstance(e, str)])) if bcc_emails else None
+
+    # Build payload respecting your use_bcc behaviour:
+    payload = {
+        "sender": {"name": sender_name or "ATS Portal", "email": sender_email},
+        "subject": subject or "",
+        "htmlContent": html_body or "",
+        "textContent": plain_body or "",
+    }
+
+    if use_bcc:
+        # Keep To header as sender (internal) and BCC as recipients (same as original logic)
+        payload["to"] = [{"email": sender_email}]
+        payload["bcc"] = [{"email": e} for e in uniq_to]
+        if cc:
+            payload["cc"] = [{"email": e} for e in cc]
+    else:
+        payload["to"] = [{"email": e} for e in uniq_to]
+        if cc:
+            payload["cc"] = [{"email": e} for e in cc]
+        if bcc:
+            payload["bcc"] = [{"email": e} for e in bcc]
+
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "api-key": api_key
+    }
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = requests.post(url, json=payload, headers=headers, timeout=timeout)
+            if 200 <= resp.status_code < 300:
+                if app_logger:
+                    app_logger.info("_send_via_brevo_api: success status=%s recipients=%s", resp.status_code, uniq_to)
+                return True
+            else:
+                if app_logger:
+                    msg = getattr(resp, "text", "")[:400]
+                    app_logger.warning("_send_via_brevo_api: non-2xx (attempt %s): status=%s resp=%s", attempt, resp.status_code, msg)
+        except Exception as e:
+            if app_logger:
+                app_logger.exception("_send_via_brevo_api: attempt %s exception", attempt)
+        # backoff
+        sleep(0.5 * attempt)
+    if app_logger:
+        app_logger.error("_send_via_brevo_api: all attempts failed for recipients=%s", uniq_to)
+    return False
+
+
+# --------- New helper: run sync send in background ----------
+def _run_send_in_background(target_fn, *args, **kwargs):
+    """Start a daemon thread and return immediately (best-effort)."""
+    t = Thread(target=target_fn, args=args, kwargs=kwargs, daemon=True)
+    t.start()
+    return True
 
 def _normalize_emails_field(raw):
     """Return list of emails from list/tuple, JSON string, or comma-separated string."""
