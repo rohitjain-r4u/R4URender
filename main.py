@@ -34,6 +34,18 @@ app = Flask(__name__)
 from pipeline_routes import bp as pipeline_bp
 app.register_blueprint(pipeline_bp)
 
+
+from myteam import myteam_bp, fmtdate
+# Register fmtdate as an app-level template filter (safe even if the blueprint was already
+# registered by another import or during module initialization). This prevents the
+# 'setup method ... can no longer be called on the blueprint' AssertionError.
+app.add_template_filter(fmtdate, name='fmtdate')
+app.register_blueprint(myteam_bp, url_prefix='/myteam')
+   # or remove url_prefix to mount at root
+
+
+
+
 # --- Health check endpoint (for Render/Gunicorn) ---
 @app.get("/healthz")
 def healthz():
