@@ -106,16 +106,28 @@
             </a>
           </li>
 
+        
           <li class="nav-item">
             <a class="navlink" href="{{ url_for('reports_bp.reports_index') }}">
               <i class="bi bi-graph-up" aria-hidden="true"></i><span>Reports</span>
             </a>
-          </li>
+          </li>{% if session.get('role') == 'admin' %}
+
           <li class="nav-item">
             <a class="navlink" href="{{ url_for('recruiter_perf.recruiter_performance_page') }}">
               <i class="bi bi-speedometer2" aria-hidden="true"></i><span>Recruiter Performance</span>
             </a>
           </li>
+
+{% endif %}
+
+          <li class="nav-item">
+            <a class="navlink" href="{{ url_for('myteam.teams') }}">
+              <i class="bi bi-people-fill" aria-hidden="true"></i><span>My Team</span>
+            </a>
+          </li>
+          {# If your blueprint is registered as 'myteam' (not 'myteam_bp'), change to:
+             href="{{ url_for('myteam.teams') }}" #}
 
           {% if session.get('role') == 'admin' %}
           <li class="nav-item">

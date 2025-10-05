@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.form-card { max-width:820px; margin:0 auto; padding:18px; background:#fff; border-radius:10px; box-shadow:0 8px 30px rgba(2,6,23,0.12); }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media (max-width:700px){ .form-row { grid-template-columns:1fr; } }
+.field { margin-bottom:12px; }
+</style>
+
+<div class="mb-3">
+  <a class="btn btn-outline-secondary" href="{{ url_for('myteam.admin_teams') }}">← Back to list</a>
+</div>
+
+<div class="form-card">
+  <h4>Add team member</h4>
+  <form method="post" action="{{ url_for('myteam.admin_add') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row">
+      <div class="field">
+        <label class="form-label">Full name</label>
+        <input class="form-control" type="text" name="name" required>
+      </div>
+      <div class="field">
+        <label class="form-label">Designation</label>
+        <input class="form-control" type="text" name="designation">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label class="form-label">Email</label>
+        <input class="form-control" type="email" name="email">
+      </div>
+      <div class="field">
+        <label class="form-label">Phone</label>
+        <input class="form-control" type="text" name="phone_number">
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="form-label">City</label>
+      <input class="form-control" type="text" name="city">
+    </div>
+
+    <div class="field">
+      <label class="form-label">Address</label>
+      <textarea class="form-control" name="address" rows="3"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label class="form-label">Joining date</label>
+        <input class="form-control" type="date" name="joining_date">
+      </div>
+      <div class="field">
+        <label class="form-label">Birthday</label>
+        <input class="form-control" type="date" name="birthday">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label class="form-label">Anniversary</label>
+        <input class="form-control" type="date" name="anniversary">
+      </div>
+      <div class="field">
+        <label class="form-label">Profile Image (filename or URL)</label>
+        <input class="form-control" type="text" name="image_url" placeholder="uploads/photo.jpg or https://...">
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <button type="submit" class="btn btn-success">Save member</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('myteam.admin_teams') }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
