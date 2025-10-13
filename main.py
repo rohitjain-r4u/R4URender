@@ -138,6 +138,32 @@ from import_routes import import_bp
 app.register_blueprint(import_bp, url_prefix="/candidates/import")
 app.register_blueprint(export_bp)
 
+
+# --- Auto-cleanup for uploads (runs at startup) ---
+def _cleanup_uploads(older_than_hours=1):
+    import os, time, logging
+    upload_dir = os.path.join(os.getcwd(), "uploads")
+    if not os.path.exists(upload_dir):
+        return
+    now = time.time()
+    removed = 0
+    for fname in os.listdir(upload_dir):
+        path = os.path.join(upload_dir, fname)
+        try:
+            if os.path.isfile(path) and now - os.path.getmtime(path) > older_than_hours * 3600:
+                os.remove(path)
+                removed += 1
+        except Exception as e:
+            logging.warning(f"cleanup: could not remove {path}: {e}")
+    logging.getLogger('req_app').info(f"startup: cleaned {removed} old upload files")
+# Run cleanup at startup
+try:
+    _cleanup_uploads()
+except Exception:
+    # never let cleanup break app startup
+    import logging as _lc; _lc.getLogger('req_app').exception('cleanup failed at startup')
+# --- End auto-cleanup ---
+
 # Token serializer for password reset links
 ts = URLSafeTimedSerializer(app.secret_key)
 
