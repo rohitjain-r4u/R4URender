@@ -143,10 +143,13 @@ app.register_blueprint(export_bp)
 def _cleanup_uploads(older_than_hours=1):
     import os, time, logging
     upload_dir = os.path.join(os.getcwd(), "uploads")
-    if not os.path.exists(upload_dir):
-        return
     now = time.time()
     removed = 0
+
+    if not os.path.exists(upload_dir):
+        logging.getLogger('req_app').info("startup: no uploads directory found — skipping cleanup")
+        return
+
     for fname in os.listdir(upload_dir):
         path = os.path.join(upload_dir, fname)
         try:
@@ -154,14 +157,11 @@ def _cleanup_uploads(older_than_hours=1):
                 os.remove(path)
                 removed += 1
         except Exception as e:
-            logging.warning(f"cleanup: could not remove {path}: {e}")
-    logging.getLogger('req_app').info(f"startup: cleaned {removed} old upload files")
-# Run cleanup at startup
-try:
-    _cleanup_uploads()
-except Exception:
-    # never let cleanup break app startup
-    import logging as _lc; _lc.getLogger('req_app').exception('cleanup failed at startup')
+            logging.getLogger('req_app').warning(f"cleanup: could not remove {path}: {e}")
+
+    msg = f"✅ Upload cleanup executed at startup — removed {removed} old file(s)"
+    logging.getLogger('req_app').info(msg)
+    print(msg)  # ensures visibility in Render logs even if logging handler not yet configured
 # --- End auto-cleanup ---
 
 # Token serializer for password reset links
