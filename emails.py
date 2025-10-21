@@ -1313,6 +1313,245 @@ def send_requirement_jd(requirement, candidates, initiator_user_id=None,
         raise RuntimeError('send_jd_to_candidates function not found in emails.py')
 
 
+# ---------------------------
+# Reminder email helper + sender
+# ---------------------------
+def _build_interview_reminder_email_payload(requirement, candidate, recruiter_display, interview_date, interview_time):
+    """
+    Build subject, plain text and HTML bodies for an interview REMINDER email.
+    Returns: (subject, plain_body, html_body)
+
+    - requirement: dict (may be partial)
+    - candidate: dict with candidate_name etc.
+    - recruiter_display: string to use as sender display name
+    - interview_date: string or date object (YYYY-MM-DD or date)
+    - interview_time: string like '09:00' or '21:00' or full 'HH:MM:SS'
+    """
+    import html as _html
+    from datetime import datetime as _dt
+
+    # Candidate first name for greeting
+    cand_name = (candidate.get("candidate_name") or "").strip()
+    first_name = cand_name.split()[0] if cand_name else "Candidate"
+
+    # safe getters for requirement info
+    role = None
+    client = None
+    if isinstance(requirement, dict):
+        role = requirement.get("requirement_name") or requirement.get("title") or None
+        client = requirement.get("client_name") or requirement.get("client") or None
+
+    # Build subject dynamically (no hardcoding)
+    subj_parts = []
+    if role:
+        subj_parts.append(role)
+    if client:
+        subj_parts.append(f"@ {client}")
+    subj_main = " ".join(subj_parts) if subj_parts else "Interview"
+    subject = f"Interview Reminder: {subj_main} — Today at {interview_time}"
+
+    # Format date as '21 October 2025'
+    def _format_date(d):
+        try:
+            if not d:
+                return ""
+            if isinstance(d, str):
+                # try YYYY-MM-DD
+                try:
+                    dt = _dt.strptime(d, "%Y-%m-%d")
+                    return dt.strftime("%d %B %Y")
+                except Exception:
+                    # try common variants; fallback to raw string
+                    try:
+                        dt = _dt.fromisoformat(d)
+                        return dt.strftime("%d %B %Y")
+                    except Exception:
+                        return str(d)
+            else:
+                # assume date or datetime
+                return d.strftime("%d %B %Y")
+        except Exception:
+            return str(d)
+
+    # Format time as '9:00 PM' or '09:00 PM' depending on hour
+    def _format_time(t):
+        try:
+            if not t:
+                return ""
+            if isinstance(t, str):
+                s = t.strip()
+                # trim seconds if present
+                parts = s.split(":")
+                hh = int(parts[0]) % 24
+                mm = int(parts[1]) if len(parts) > 1 else 0
+                # build a datetime to format in 12-hour style
+                dt = _dt(2000, 1, 1, hh, mm)
+                return dt.strftime("%-I:%M %p") if hasattr(dt, "strftime") else dt.strftime("%I:%M %p")
+            else:
+                # datetime.time or datetime
+                if hasattr(t, "hour"):
+                    hh = t.hour
+                    mm = t.minute
+                else:
+                    # fallback
+                    return str(t)
+                dt = _dt(2000, 1, 1, hh, mm)
+                return dt.strftime("%-I:%M %p") if hasattr(dt, "strftime") else dt.strftime("%I:%M %p")
+        except Exception:
+            # fallback to simple string
+            return str(t)
+
+    formatted_date = _format_date(interview_date)
+    formatted_time_12 = _format_time(interview_time)
+    # Add (IST) suffix in outputs
+    time_with_zone = f"{formatted_time_12} (IST)" if formatted_time_12 else ""
+
+    # Plain text body exactly as requested
+    plain_body = f"""Hi {first_name},
+
+This is a gentle reminder about your upcoming interview scheduled for today. Please find the details below:
+
+Role: {role or 'N/A'}
+Client: {client or 'N/A'}
+Date: {formatted_date or 'N/A'}
+Time: {formatted_time_12 or 'N/A'} (IST)
+
+Kindly ensure you are ready and available at least 10 minutes prior to the scheduled time.
+If you have any questions or face any issues joining, please feel free to reach out in advance.
+
+Wishing you all the best for your interview!
+
+Warm regards,
+{recruiter_display} updated the interview time
+"""
+
+    # HTML body matching the plain text, with simple, clean markup
+    safe = _html.escape
+    html_body = f"""<!doctype html>
+<html>
+  <body style="font-family: Arial, Helvetica, sans-serif; color:#111;">
+    <p>Hi <strong>{safe(first_name)}</strong>,</p>
+
+    <p>This is a gentle reminder about your upcoming interview scheduled for <strong>today</strong>. Please find the details below:</p>
+
+    <table style="border-collapse:collapse; margin:12px 0;">
+      <tr><td style="padding:6px 12px; font-weight:700;">Role:</td><td style="padding:6px 12px;">{safe(role or 'N/A')}</td></tr>
+      <tr><td style="padding:6px 12px; font-weight:700;">Client:</td><td style="padding:6px 12px;">{safe(client or 'N/A')}</td></tr>
+      <tr><td style="padding:6px 12px; font-weight:700;">Date:</td><td style="padding:6px 12px;">{safe(formatted_date or 'N/A')}</td></tr>
+      <tr><td style="padding:6px 12px; font-weight:700;">Time:</td><td style="padding:6px 12px;">{safe(formatted_time_12 or 'N/A')} (IST)</td></tr>
+    </table>
+
+    <p>Kindly ensure you are ready and available at least 10 minutes prior to the scheduled time.<br/>
+    If you have any questions or face any issues joining, please feel free to reach out in advance.</p>
+
+    <p>Wishing you all the best for your interview!</p>
+
+    <p>Warm regards,<br/><strong>{safe(recruiter_display)} updated the interview time</strong></p>
+  </body>
+</html>
+"""
+    return subject, plain_body, html_body
+
+
+def send_interview_reminder(candidate, requirement=None, interview_date=None, interview_time=None, cur=None):
+    """
+    Send a reminder email to the candidate about an upcoming interview.
+
+    ✅ From address remains MAIL_DEFAULT_SENDER.
+    ✅ From display name shows recruiter name.
+    ✅ Recruiter email is added to CC.
+    """
+    import logging
+    from datetime import datetime
+
+    try:
+        from main import app, session
+    except Exception:
+        app = None
+        session = {}
+
+    recruiter_display = None
+    recruiter_email = None
+    username = None
+
+    # --- Resolve recruiter name and email (same logic as other mailers) ---
+    try:
+        username = session.get("username") if session else None
+        if username and cur:
+            cur.execute("SELECT first_name, last_name, email, username FROM users WHERE username=%s", (username,))
+            row = cur.fetchone()
+            if row:
+                if isinstance(row, dict):
+                    fn = (row.get("first_name") or "").strip()
+                    ln = (row.get("last_name") or "").strip()
+                    recruiter_email = (row.get("email") or "").strip() or None
+                    uname = (row.get("username") or username)
+                else:
+                    vals = list(row)
+                    fn = vals[0] or ""
+                    ln = vals[1] or ""
+                    recruiter_email = vals[2] or None
+                    uname = vals[3] or username
+                recruiter_display = " ".join(p for p in (fn, ln) if p).strip() or uname
+    except Exception:
+        if app:
+            app.logger.exception("send_interview_reminder: recruiter lookup failed")
+
+    if not recruiter_display:
+        recruiter_display = username or "Recruiter"
+
+    # --- Candidate recipient(s) ---
+    emails = _normalize_emails_field(candidate.get("emails") or candidate.get("primary_email") or "")
+    if not emails:
+        return {"to": [], "status": "failed", "error": "no candidate email"}
+
+    # --- Build subject and body (already customized earlier) ---
+    subject, plain_body, html_body = _build_interview_reminder_email_payload(
+        requirement or {}, candidate, recruiter_display, interview_date, interview_time
+    )
+
+    # --- Build CC list (include recruiter email if available) ---
+    cc_final = []
+    if recruiter_email and "@" in recruiter_email:
+        cc_final.append(recruiter_email)
+    try:
+        session_email = None
+        for key in ("email", "user_email", "email_address"):
+            val = session.get(key)
+            if val and "@" in val and val.lower() not in {e.lower() for e in cc_final}:
+                session_email = val
+                cc_final.append(val)
+                break
+    except Exception:
+        pass
+
+    # --- Send email using same helper as others ---
+    ok = _send_mail_with_retry(
+        subject=subject,
+        plain_body=plain_body,
+        html_body=html_body,
+        to_emails=emails,
+        sender_name=recruiter_display,   # shows as “From: Tanya”
+        cc_emails=cc_final,              # recruiter visible in CC
+        use_bcc=False,
+        background=False
+    )
+
+    if app:
+        app.logger.info(
+            "send_interview_reminder: sent to=%s FromDisplay=%s CC=%s subject=%s",
+            emails, recruiter_display, cc_final, subject
+        )
+
+    return {
+        "to": emails,
+        "status": "sent" if ok else "failed",
+        "cc": cc_final,
+        "from_display": recruiter_display
+    }
+
+
+
 def _build_jd_email_payload(requirement, candidate, recruiter_display='', recruiter_email=''):
     """
     Build (subject, plain_body, html_body) using the same visual layout as interview emails
