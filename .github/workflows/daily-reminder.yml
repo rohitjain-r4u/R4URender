@@ -2,31 +2,52 @@ name: Daily Interview Reminder
 
 on:
   schedule:
-    # Runs every day at 8:00 AM IST (which is 2:30 AM UTC)
+    # Runs daily at 02:30 UTC (08:00 IST)
     - cron: "30 2 * * *"
-  workflow_dispatch:  # allows manual trigger from the GitHub Actions tab
+  workflow_dispatch:  # allows manual run from UI
 
 jobs:
   run-daily-reminder:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (full history)
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      - name: Set up Python
+      - name: Show Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run daily interview reminder script
+      - name: Run daily interview reminder script (auto-detect + debug)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
         run: |
-          python scripts/daily_interview_reminder
+          set -euo pipefail
+          echo "WORKDIR: $(pwd)"
+          echo "ROOT listing:"
+          ls -la
+          echo "scripts/ listing:"
+          ls -la scripts || true
+
+          # Try likely script paths in order
+          if [ -f scripts/daily_interview_reminder ]; then
+            echo "Running: scripts/daily_interview_reminder"
+            python scripts/daily_interview_reminder
+          elif [ -f scripts/daily_interview_reminder.py ]; then
+            echo "Running: scripts/daily_interview_reminder.py"
+            python scripts/daily_interview_reminder.py
+          else
+            echo "File not found in expected paths. Listing any file containing 'daily' for debugging:"
+            find . -type f -iname "*daily*" -maxdepth 5 -print || true
+            echo "Ensure the workflow is running on the branch that contains the script (select branch in 'Run workflow')."
+            exit 2
+          fi
