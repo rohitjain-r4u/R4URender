@@ -28,9 +28,28 @@ jobs:
             pip install -r requirements.txt
           fi
 
-      - name: Run daily interview reminder script
+      - name: Run daily interview reminder script (auto-detect)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
         run: |
-          echo "Listin
+          set -euo pipefail
+
+          # Simple, unquoted diagnostics to avoid stray-quote problems
+          echo Listing repository structure (top 100 lines):
+          ls -R | head -n 100 || true
+
+          echo Checking for script in ./scripts/
+          ls -la scripts || true
+
+          if [ -f scripts/daily_interview_reminder ]; then
+            echo Found: scripts/daily_interview_reminder
+            python scripts/daily_interview_reminder
+          elif [ -f scripts/daily_interview_reminder.py ]; then
+            echo Found: scripts/daily_interview_reminder.py
+            python scripts/daily_interview_reminder.py
+          else
+            echo Script not found in expected path. Listing matches:
+            find . -type f -iname "*daily*" -maxdepth 6 -print || true
+            exit 2
+          fi
