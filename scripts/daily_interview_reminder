@@ -1,0 +1,190 @@
+# Auto-add project root to sys.path so imports work when running from scripts/ directory
+import sys, pathlib
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import traceback
+
+# Import application DB helper & email senders from your project
+try:
+    from main import get_db_cursor, app as flask_app  # get_db_cursor yields (conn, cur)
+except Exception:
+    get_db_cursor = None
+    flask_app = None
+
+# Import email sending helpers from your emails.py
+try:
+    # prefer the candidate-specific helper used in your app
+    from emails import send_candidate_interview_email, send_interview_reminder
+except Exception:
+    # fallback (if only one exists)
+    try:
+        from emails import send_candidate_interview_email
+        send_interview_reminder = None
+    except Exception:
+        raise RuntimeError("Could not import send_candidate_interview_email from emails.py — ensure emails.py is present and exports it.")
+
+def fetch_todays_interviews(cur, ist_date):
+    """
+    Fetch candidates that have interview_date = ist_date and interview_time is not null.
+    Returns list of rows (dict-like) with candidate + requirement info.
+    """
+    sql = """
+        SELECT c.id, c.requirement_id, c.candidate_name, c.emails, c.phones,
+               c.interview_date, c.interview_time, c.job_title, c.added_by,
+               r.id AS req_id, r.requirement_name, r.client_name, r.client_linkedin_profile,
+               r.mandatory_skills, r.experience, r.job_locations, r.job_description
+        FROM candidates c
+        LEFT JOIN requirements r ON c.requirement_id = r.id
+        WHERE c.interview_date = %s
+          AND c.interview_time IS NOT NULL
+    """
+    cur.execute(sql, (ist_date,))
+    rows = cur.fetchall()
+    return rows
+
+def normalize_row(row):
+    """
+    Convert DB row (RealDictRow or dict) into candidate dict expected by emails.send_candidate_interview_email
+    """
+    if row is None:
+        return None
+    # row is likely a RealDictRow -> treat like dict
+    get = (lambda k: row.get(k) if isinstance(row, dict) else (row[k] if k in row else None))
+    candidate = {
+        "id": get("id"),
+        "candidate_name": get("candidate_name") or "",
+        "emails": get("emails") or get("emails") or [],
+        "phones": get("phones") or [],
+        "requirement_id": get("requirement_id") or get("req_id"),
+        "job_title": get("job_title") or "",
+        # these are used by the email functions with _interview_date/_interview_time keys
+        "_interview_date": get("interview_date"),
+        "_interview_time": get("interview_time"),
+    }
+    requirement = None
+    if get("requirement_id") or get("req_id"):
+        requirement = {
+            "id": get("requirement_id") or get("req_id"),
+            "requirement_name": get("requirement_name"),
+            "client_name": get("client_name"),
+            "client_linkedin_profile": get("client_linkedin_profile"),
+            "mandatory_skills": get("mandatory_skills"),
+            "experience": get("experience"),
+            "job_locations": get("job_locations"),
+            "job_description": get("job_description"),
+        }
+    return candidate, requirement
+
+def main():
+    # compute IST date
+    try:
+        ist_today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+    except Exception:
+        # fallback to UTC date (shouldn't happen on modern Python)
+        ist_today = datetime.utcnow().date()
+
+    print(f"[{datetime.utcnow().isoformat()}] Starting daily reminder run for IST date: {ist_today}")
+
+    conn = None
+    cur = None
+    created_conn = False
+
+    try:
+        if get_db_cursor:
+            # get_db_cursor is a contextmanager in main.py; use it
+            with get_db_cursor() as (_conn, _cur):
+                conn, cur = _conn, _cur
+                rows = fetch_todays_interviews(cur, ist_today)
+        else:
+            # fallback: use DATABASE_URL (psycopg2)
+            import psycopg2, psycopg2.extras
+            DATABASE_URL = os.environ.get("DATABASE_URL")
+            if not DATABASE_URL:
+                raise RuntimeError("DATABASE_URL not set and main.get_db_cursor not available.")
+            conn = psycopg2.connect(DATABASE_URL)
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            created_conn = True
+            rows = fetch_todays_interviews(cur, ist_today)
+
+        total = len(rows or [])
+        if total == 0:
+            print(f"No interviews found for {ist_today} (IST). Exiting.")
+            return
+
+        print(f"Found {total} interview(s) for {ist_today}. Sending reminders...")
+
+        sent = 0
+        failed = 0
+        details = []
+        # Iterate and send one-by-one; this uses your existing send_candidate_interview_email helper.
+        for r in rows:
+            try:
+                cand, req = normalize_row(r)
+                if not cand or not (cand.get("emails") or cand.get("emails") == []):
+                    details.append({"candidate_id": cand.get("id") if cand else None, "status": "skipped", "reason": "no email"})
+                    failed += 1
+                    continue
+
+                # The emails helper expects interview_date/time positional args (and cur)
+                interview_date = cand.get("_interview_date")
+                interview_time = cand.get("_interview_time")
+                # call preferred helper if present
+                if 'send_interview_reminder' in globals() and callable(send_interview_reminder):
+                    # some variants of send_interview_reminder return {'status':'sent'} etc.
+                    res = send_interview_reminder(candidate=cand, requirement=req, interview_date=interview_date, interview_time=interview_time, cur=cur)
+                else:
+                    # fallback to send_candidate_interview_email (your main helper)
+                    res = send_candidate_interview_email(candidate=cand, requirement=req, interview_date=interview_date, interview_time=interview_time, cur=cur, is_reschedule=False)
+
+                # Interpret common return shapes
+                ok = False
+                if isinstance(res, dict):
+                    # common report dict has 'sent' or 'status'
+                    if res.get("sent") and int(res.get("sent")) > 0:
+                        ok = True
+                    if res.get("status") == "sent":
+                        ok = True
+                elif isinstance(res, bool):
+                    ok = res
+                else:
+                    # assume success if nothing exploded
+                    ok = True
+
+                if ok:
+                    sent += 1
+                    details.append({"candidate_id": cand.get("id"), "email": cand.get("emails"), "status": "sent"})
+                else:
+                    failed += 1
+                    details.append({"candidate_id": cand.get("id"), "email": cand.get("emails"), "status": "failed", "result": str(res)[:300]})
+            except Exception as e:
+                failed += 1
+                details.append({"error": str(e)[:300]})
+                print("Error sending for row:", e)
+                traceback.print_exc()
+
+        print(f"Summary for {ist_today}: total={total}, sent={sent}, failed={failed}")
+        # optional: commit if any DB writes done inside send helper (send helper may log)
+        try:
+            if conn:
+                conn.commit()
+        except Exception:
+            pass
+
+    finally:
+        # close fallback conn if we created it
+        try:
+            if cur and getattr(cur, "close", None):
+                cur.close()
+            if created_conn and conn and getattr(conn, "close", None):
+                conn.close()
+        except Exception:
+            pass
+
+if __name__ == "__main__":
+    main()
