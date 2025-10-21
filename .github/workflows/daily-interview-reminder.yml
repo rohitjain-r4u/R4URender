@@ -1,0 +1,6 @@
+      - name: Run daily interview reminder
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+        run: |
+          python scripts/daily_interview_reminder
