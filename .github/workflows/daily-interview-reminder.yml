@@ -4,7 +4,7 @@ on:
   schedule:
     # Runs daily at 8:00 AM IST (2:30 AM UTC)
     - cron: "30 2 * * *"
-  workflow_dispatch:  # allows manual run from the Actions tab
+  workflow_dispatch:
 
 jobs:
   run-daily-reminder:
@@ -24,36 +24,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
 
-      - name: Debug: verify repo & branch
-        run: |
-          echo "==> GITHUB_REF=$GITHUB_REF"
-          echo "==> GITHUB_SHA=$GITHUB_SHA"
-          echo "==> Current working directory: $(pwd)"
-          echo "==> Repo structure (top 50 lines):"
-          ls -R | head -n 50
-          echo "==> Workflow file (for verification):"
-          cat .github/workflows/daily-interview-reminder.yml || true
-
-      - name: Run daily interview reminder script (auto-detect)
+      - name: Run daily interview reminder script
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
         run: |
-          set -euo pipefail
-          echo "==> Checking for script..."
-          ls -la scripts || true
-
-          if [ -f scripts/daily_interview_reminder ]; then
-            echo "Found: scripts/daily_interview_reminder"
-            python scripts/daily_interview_reminder
-          elif [ -f scripts/daily_interview_reminder.py ]; then
-            echo "Found: scripts/daily_interview_reminder.py"
-            python scripts/daily_interview_reminder.py
-          else
-            echo "Script not found. Listing any file with 'daily' in the name for debugging:"
-            find . -type f -iname "*daily*" -maxdepth 6 -print || true
-            echo "Ensure the workflow is running on the branch that contains the script and that the file is committed."
-            exit 2
-          fi
+          echo "Listin
