@@ -1,3 +1,28 @@
+name: Daily Interview Reminder
+
+on:
+  schedule:
+    - cron: "30 2 * * *"   # Runs every day at 8:00 AM IST
+  workflow_dispatch:
+
+jobs:
+  reminder:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
       - name: Run daily interview reminder
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
