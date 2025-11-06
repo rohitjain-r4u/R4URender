@@ -573,6 +573,9 @@ html, body { margin: 0 !important; padding: 0 !important; }
       <option value="R2 Rejected" {% if profile_status=='R2 Rejected' %}selected{% endif %}>R2 Rejected</option>
       <option value="R3 Rejected" {% if profile_status=='R3 Rejected' %}selected{% endif %}>R3 Rejected</option>
       <option value="R1 Rejected" {% if profile_status=='R1 Rejected' %}selected{% endif %}>R1 Rejected</option>
+      <option value="Dropped" {% if profile_status=='Dropped' %}selected{% endif %}>Dropped</option>
+      <option value="Joined" {% if profile_status=='Joined' %}selected{% endif %}>Joined</option>
+      <option value="Not Interested" {% if profile_status=='Not Interested' %}selected{% endif %}>Not Interested</option>
     </select>
   </div>
   <div>
@@ -809,7 +812,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const CALLING_LIST = ["Screen Select","CNS","Not interested","Not Reachable","Rejected"];
     const PROFILE_LIST = ["Profile shared with client","Review Pending by client","R2 Pending","R3 Pending","R1 to be schedule",
                           "R2 scheduled","R3 scheduled","R1 scheduled","F2F Scheduled","Screen Rejected","R1 FBP","R2 FBP","R3 FBP","HR Round","Offered",
-                          "R2 Rejected","R3 Rejected","R1 Rejected"];
+                          "R2 Rejected","R3 Rejected","R1 Rejected", "Dropped", "Joined", "Not Interested"];
     let openEditor = null;
     function closeEditor(){ if(openEditor){ openEditor.remove(); openEditor=null; } }
 
